@@ -1,7 +1,7 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "Vibe Kanban",
+  "name": "Anyon",
   "description": "A kanban board for developers to track coding tasks with AI coding agents",
   "appearance": {
     "default": "light"
@@ -77,7 +77,7 @@
           "integrations/github-integration",
           "integrations/vscode-extension",
           "integrations/mcp-server-configuration",
-          "integrations/vibe-kanban-mcp-server"
+          "integrations/anyon-mcp-server"
         ]
       }
     ]
@@ -90,13 +90,13 @@
     "links": [
       {
         "label": "GitHub",
-        "href": "https://github.com/BloopAI/vibe-kanban"
+        "href": "https://github.com/BloopAI/anyon"
       }
     ],
     "primary": {
       "type": "button",
       "label": "Get Started",
-      "href": "https://vibekanban.com/docs"
+      "href": "https://anyon.com/docs"
     }
   },
   "contextual": {
@@ -119,8 +119,8 @@
   },
   "footer": {
     "socials": {
-      "github": "https://github.com/BloopAI/vibe-kanban",
-      "x": "https://x.com/vibekanban"
+      "github": "https://github.com/BloopAI/anyon",
+      "x": "https://x.com/anyon"
     }
   }
 }

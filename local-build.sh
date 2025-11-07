@@ -16,18 +16,18 @@ cargo build --release --bin mcp_task_server --manifest-path Cargo.toml
 echo "📦 Creating distribution package..."
 
 # Copy the main binary
-cp target/release/server vibe-kanban
-zip -q vibe-kanban.zip vibe-kanban
-rm -f vibe-kanban 
-mv vibe-kanban.zip npx-cli/dist/macos-arm64/vibe-kanban.zip
+cp target/release/server anyon
+zip -q anyon.zip anyon
+rm -f anyon 
+mv anyon.zip npx-cli/dist/macos-arm64/anyon.zip
 
 # Copy the MCP binary
-cp target/release/mcp_task_server vibe-kanban-mcp
-zip -q vibe-kanban-mcp.zip vibe-kanban-mcp
-rm -f vibe-kanban-mcp
-mv vibe-kanban-mcp.zip npx-cli/dist/macos-arm64/vibe-kanban-mcp.zip
+cp target/release/mcp_task_server anyon-mcp
+zip -q anyon-mcp.zip anyon-mcp
+rm -f anyon-mcp
+mv anyon-mcp.zip npx-cli/dist/macos-arm64/anyon-mcp.zip
 
 echo "✅ NPM package ready!"
 echo "📁 Files created:"
-echo "   - npx-cli/dist/macos-arm64/vibe-kanban.zip"
-echo "   - npx-cli/dist/macos-arm64/vibe-kanban-mcp.zip"
+echo "   - npx-cli/dist/macos-arm64/anyon.zip"
+echo "   - npx-cli/dist/macos-arm64/anyon-mcp.zip"

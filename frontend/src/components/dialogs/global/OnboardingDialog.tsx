@@ -72,7 +72,7 @@ const OnboardingDialog = NiceModal.create(() => {
         <DialogHeader>
           <div className="flex items-center gap-3">
             <HandMetal className="h-6 w-6 text-primary text-primary-foreground" />
-            <DialogTitle>Welcome to Vibe Kanban</DialogTitle>
+            <DialogTitle>Welcome to Anyon</DialogTitle>
           </div>
           <DialogDescription className="text-left pt-2">
             Let's set up your coding preferences. You can always change these
