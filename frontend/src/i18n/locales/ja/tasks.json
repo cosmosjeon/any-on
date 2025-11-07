@@ -281,12 +281,12 @@
   "showcases": {
     "taskPanel": {
       "companion": {
-        "title": "Vibe Kanban Companion ポイント＆クリック",
+        "title": "Anyon Companion ポイント＆クリック",
         "description": "プレビューウィンドウ内の任意のUIコンポーネントをクリックして正確に選択できます。コーディングエージェントは正確なDOMセレクタとコンポーネント階層を受け取り、曖昧なフィードバックを排除します。"
       },
       "installation": {
         "title": "開発サーバーとCompanionのインストール",
-        "description": "プレビュー用に開発サーバーコマンドを設定します。設定でセットアップスクリプトを構成できます。コーディングエージェントを使用してVibe Kanban Webコンパニオンを自動的にインストールします。"
+        "description": "プレビュー用に開発サーバーコマンドを設定します。設定でセットアップスクリプトを構成できます。コーディングエージェントを使用してAnyon Webコンパニオンを自動的にインストールします。"
       },
       "codeReview": {
         "title": "組み込みコードレビュー",
