@@ -101,7 +101,7 @@ fn normalize_macos_private_alias<P: AsRef<Path>>(p: P) -> PathBuf {
     p.to_path_buf()
 }
 
-pub fn get_vibe_kanban_temp_dir() -> std::path::PathBuf {
+pub fn get_anyon_temp_dir() -> std::path::PathBuf {
     let dir_name = if cfg!(debug_assertions) {
         "anyon-dev"
     } else {

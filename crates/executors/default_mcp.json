@@ -1,5 +1,5 @@
 {
-  "vibe_kanban": {
+  "anyon": {
     "command": "npx",
     "args": [
       "-y",
@@ -21,7 +21,7 @@
     ]
   },
   "meta": {
-    "vibe_kanban": {
+    "anyon": {
       "name": "Anyon",
       "description": "Create, update and delete Anyon tasks",
       "url": "https://www.anyon.com/docs/integrations/anyon-mcp-server",

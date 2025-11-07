@@ -1,6 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useCallback } from 'react';
-import { siDiscord } from 'simple-icons';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -14,7 +13,6 @@ import {
   Settings,
   BookOpen,
   MessageCircleQuestion,
-  MessageCircle,
   Menu,
   Plus,
 } from 'lucide-react';
@@ -25,7 +23,6 @@ import { openTaskForm } from '@/lib/openTaskForm';
 import { useProject } from '@/contexts/project-context';
 import { useOpenProjectInEditor } from '@/hooks/useOpenProjectInEditor';
 import { OpenInIdeButton } from '@/components/ide/OpenInIdeButton';
-import { useDiscordOnlineCount } from '@/hooks/useDiscordOnlineCount';
 
 const INTERNAL_NAV = [{ label: 'Projects', icon: FolderOpen, to: '/projects' }];
 
@@ -40,11 +37,6 @@ const EXTERNAL_LINKS = [
     icon: MessageCircleQuestion,
     href: 'https://github.com/BloopAI/anyon/issues',
   },
-  {
-    label: 'Discord',
-    icon: MessageCircle,
-    href: 'https://discord.gg/AC4nwVtJM3',
-  },
 ];
 
 export function Navbar() {
@@ -52,7 +44,6 @@ export function Navbar() {
   const { projectId, project } = useProject();
   const { query, setQuery, active, clear, registerInputRef } = useSearch();
   const handleOpenInEditor = useOpenProjectInEditor(project || null);
-  const { data: onlineCount } = useDiscordOnlineCount();
 
   const setSearchBarRef = useCallback(
     (node: HTMLInputElement | null) => {
@@ -79,32 +70,6 @@ export function Navbar() {
             <Link to="/projects">
               <Logo />
             </Link>
-            <a
-              href="https://discord.gg/AC4nwVtJM3"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Join our Discord"
-              className="hidden sm:inline-flex items-center ml-3 text-xs font-medium overflow-hidden border h-6"
-            >
-              <span className="bg-muted text-foreground flex items-center p-2 border-r">
-                <svg
-                  className="h-4 w-4"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                  aria-hidden="true"
-                >
-                  <path d={siDiscord.path} />
-                </svg>
-              </span>
-              <span
-                className=" h-full items-center flex p-2"
-                aria-live="polite"
-              >
-                {onlineCount != null
-                  ? `${onlineCount.toLocaleString()} online`
-                  : 'online'}
-              </span>
-            </a>
           </div>
 
           <SearchBar

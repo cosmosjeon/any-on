@@ -475,6 +475,6 @@ impl WorktreeManager {
 
     /// Get the base directory for anyon worktrees
     pub fn get_worktree_base_dir() -> std::path::PathBuf {
-        utils::path::get_vibe_kanban_temp_dir().join("worktrees")
+        utils::path::get_anyon_temp_dir().join("worktrees")
     }
 }
