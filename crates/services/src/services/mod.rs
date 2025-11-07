@@ -4,6 +4,7 @@ pub mod auth;
 pub mod config;
 pub mod container;
 pub mod diff_stream;
+pub mod docker_poc;
 pub mod drafts;
 pub mod events;
 pub mod file_ranker;
