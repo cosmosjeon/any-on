@@ -35,22 +35,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ❌ Use incorrect timestamp format
 - ❌ Skip running migrations after creating them
 
-### 3. Development Order (개발 순서)
+### 3. Development Workflow (개발 워크플로우)
 
-**Rule:** Backend → Type Generation → Frontend → Check
+**Rule:** Plan API specs first, then implement in any order. When Rust types change, sync immediately.
 
-**Why:** Frontend depends on backend types and API endpoints. Developing in wrong order causes constant errors.
+**Why:** Planning prevents rework. Implementation order is flexible (frontend can use mock data), but type synchronization is critical.
 
 **MUST DO:**
-- When changing both backend and frontend, always start with backend
-- Run `npm run check` before considering work complete
+- **Before coding**: Agree on API specs and data structures (Request/Response types, endpoints)
+- **During coding**: Frontend can start first using mock data if needed
+- **When Rust structs change**: IMMEDIATELY run `npm run generate-types` and sync frontend
+- **Before completing**: Run `npm run check`
 
-**Workflow:**
+**Flexible Workflow:**
 ```
-1. Modify Rust code (backend)
-2. Run npm run generate-types
-3. Modify TypeScript code (frontend)
-4. Run npm run check
+Option A (Backend first):
+1. Design API spec together
+2. Implement Rust backend
+3. Run npm run generate-types
+4. Implement frontend with real types
+5. Run npm run check
+
+Option B (Frontend first - prototyping):
+1. Design API spec together
+2. Implement frontend with mock data
+3. Implement Rust backend
+4. Run npm run generate-types
+5. Replace mock with real API
+6. Run npm run check
 ```
 
 ### 4. Auto-Generated Code (자동 생성 코드)
