@@ -92,6 +92,33 @@
           "remove": "Remove token"
         }
       },
+      "claude": {
+        "title": "Claude Code 로그인",
+        "description": "터미널 없이 Claude Code CLI 인증을 웹에서 처리합니다.",
+        "helper": "Anyon이 Claude CLI 출력과 입력을 실시간으로 중계하고, Anthropic 승인 탭을 자동으로 열어 주며 발급된 토큰을 SecretStore에 암호화해 저장합니다. 사용자는 코드를 직접 붙여넣을 필요가 없습니다.",
+        "cloudOnly": "Claude 인증은 Anyon Cloud 환경에서만 지원됩니다.",
+        "status": {
+          "connected": "Claude 자격 증명이 안전하게 저장되어 있습니다.",
+          "disconnected": "아직 Claude 자격 증명이 연결되지 않았습니다."
+        },
+        "steps": {
+          "title": "동작 방식",
+          "pick": "모달에서 제공하는 버튼을 눌러 CLI 옵션 중 ‘브라우저로 로그인’을 선택합니다.",
+          "browser": "자동으로 열린 Claude/Anthropic 탭에서 계정으로 로그인하고 승인을 완료합니다.",
+          "done": "CLI가 자격 증명을 쓰면 Anyon이 SecretStore에 암호화해 저장하고 세션을 종료합니다."
+        },
+        "actions": {
+          "connect": "Claude 계정 연결",
+          "reconnect": "다시 연결",
+          "disconnect": "연결 해제",
+          "connecting": "세션 시작 중…",
+          "disconnecting": "연결 해제 중…"
+        },
+        "errors": {
+          "start": "Claude 로그인 세션을 시작하지 못했습니다. 다시 시도해주세요.",
+          "logout": "Claude 자격 증명을 삭제하지 못했습니다."
+        }
+      },
       "git": {
         "title": "Git",
         "description": "Git 브랜치 이름 지정 기본 설정 구성",

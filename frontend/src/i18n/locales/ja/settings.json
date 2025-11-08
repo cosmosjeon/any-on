@@ -92,6 +92,33 @@
           "remove": "Remove token"
         }
       },
+      "claude": {
+        "title": "Claude Code ログイン",
+        "description": "ブラウザーだけで Claude Code CLI を連携します。",
+        "helper": "Anyon が CLI のプロンプトをストリーミングし、Anthropic の承認ページを自動で開いて、発行されたトークンを SecretStore に暗号化して保存します。もう手動でトークンを貼り付ける必要はありません。",
+        "cloudOnly": "Claude 認証は Anyon Cloud でのみ利用できます。",
+        "status": {
+          "connected": "Claude の認証情報は安全に保存されています。",
+          "disconnected": "Claude の認証情報はまだ接続されていません。"
+        },
+        "steps": {
+          "title": "処理の流れ",
+          "pick": "モーダルのボタンをクリックして、CLI に表示される「ブラウザーでログイン」を選択します。",
+          "browser": "自動的に開く Claude/Anthropic のタブでログインして承認します。",
+          "done": "CLI が保存した資格情報を Anyon が SecretStore に暗号化して格納し、セッションを終了します。"
+        },
+        "actions": {
+          "connect": "Claude アカウントを接続",
+          "reconnect": "再接続",
+          "disconnect": "接続解除",
+          "connecting": "セッションを開始しています…",
+          "disconnecting": "接続解除中…"
+        },
+        "errors": {
+          "start": "Claude ログインセッションを開始できませんでした。もう一度お試しください。",
+          "logout": "Claude の認証情報を削除できませんでした。"
+        }
+      },
       "git": {
         "title": "Git",
         "description": "Gitブランチ名の設定",

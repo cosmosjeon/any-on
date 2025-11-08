@@ -83,13 +83,40 @@
         "helper": "Connect your GitHub account to access private repositories and enable advanced Git operations.",
         "cloudOnly": "GitHub integration is available only on cloud deployments.",
         "or": "OR",
-        "pat": {
-          "label": "Personal Access Token",
-          "placeholder": "ghp_xxxxxxxxxxxxxxxxxxxx",
-          "helper": "GitHub Personal Access Token with 'repo' permissions. Use this if OAuth permissions are insufficient for private repositories and organisation owned repositories.",
-          "createTokenLink": "Create token here",
-          "saved": "Personal access token stored securely.",
-          "remove": "Remove token"
+      "pat": {
+        "label": "Personal Access Token",
+        "placeholder": "ghp_xxxxxxxxxxxxxxxxxxxx",
+        "helper": "GitHub Personal Access Token with 'repo' permissions. Use this if OAuth permissions are insufficient for private repositories and organisation owned repositories.",
+        "createTokenLink": "Create token here",
+        "saved": "Personal access token stored securely.",
+        "remove": "Remove token"
+      }
+      },
+      "claude": {
+        "title": "Claude Code Login",
+        "description": "Link Claude Code CLI without leaving the browser.",
+        "helper": "Anyon streams the Claude CLI prompts, opens the Anthropic approval page automatically, and saves the issued token in SecretStore so you never paste codes manually.",
+        "cloudOnly": "Claude authentication is available only on Anyon Cloud deployments.",
+        "status": {
+          "connected": "Claude credentials are stored securely.",
+          "disconnected": "Claude credentials have not been connected yet."
+        },
+        "steps": {
+          "title": "How it works",
+          "pick": "Use the modal buttons to choose “Login with browser” when the CLI lists options.",
+          "browser": "Approve the request in the Claude/Anthropic tab that opens automatically.",
+          "done": "Anyon encrypts the saved CLI credentials in SecretStore and closes the session."
+        },
+        "actions": {
+          "connect": "Connect Claude Account",
+          "reconnect": "Reconnect",
+          "disconnect": "Disconnect",
+          "connecting": "Starting session…",
+          "disconnecting": "Disconnecting…"
+        },
+        "errors": {
+          "start": "Could not start the Claude login session. Please try again.",
+          "logout": "Failed to delete Claude credentials."
         }
       },
       "git": {

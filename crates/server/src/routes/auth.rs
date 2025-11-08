@@ -8,6 +8,7 @@ use axum::{
     routing::{get, post},
 };
 use deployment::{Deployment, DeploymentError};
+use futures::future;
 use octocrab::auth::Continue;
 use serde::{Deserialize, Serialize};
 use services::services::{
@@ -181,13 +182,15 @@ async fn claude_session_stream(
         .subscribe(&session_id)
         .map_err(|err| ApiError::Deployment(err.into()))?;
 
-    let mapped = stream.then(|item| async move {
+    let mapped = stream.filter_map(|item| async move {
         match item {
-            Ok(payload) => {
-                Event::default().json_data(&payload)
-                    .map_err(|err| ApiError::Deployment(DeploymentError::Other(err.into())))
-            }
-            Err(_) => Err(ApiError::Deployment(DeploymentError::Other(anyhow::anyhow!("Stream error")))),
+            Ok(payload) => match Event::default().json_data(&payload) {
+                Ok(event) => Some(Ok(event)),
+                Err(err) => Some(Err(ApiError::Deployment(
+                    DeploymentError::Other(err.into()),
+                ))),
+            },
+            Err(_) => None,
         }
     });
 
