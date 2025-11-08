@@ -10,12 +10,13 @@ pub mod approvals;
 pub mod auth;
 pub mod config;
 pub mod containers;
-pub mod filesystem;
-// pub mod github;
 pub mod drafts;
 pub mod events;
 pub mod execution_processes;
+pub mod filesystem;
 pub mod frontend;
+#[cfg(feature = "cloud")]
+pub mod github;
 pub mod health;
 pub mod images;
 pub mod projects;
@@ -25,7 +26,7 @@ pub mod tasks;
 
 pub fn router(deployment: DeploymentImpl) -> IntoMakeService<Router> {
     // Create routers with different middleware layers
-    let base_routes = Router::new()
+    let routes = Router::new()
         .route("/health", get(health::health_check))
         .merge(config::router())
         .merge(containers::router(&deployment))
@@ -43,8 +44,15 @@ pub fn router(deployment: DeploymentImpl) -> IntoMakeService<Router> {
         .layer(from_fn_with_state(
             deployment.clone(),
             auth::sentry_user_context_middleware,
-        ))
-        .with_state(deployment);
+        ));
+
+    #[cfg(feature = "cloud")]
+    let routes = routes.merge(github::github_router());
+
+    #[cfg(not(feature = "cloud"))]
+    let routes = routes;
+
+    let base_routes = routes.with_state(deployment);
 
     Router::new()
         .route("/", get(frontend::serve_frontend_root))

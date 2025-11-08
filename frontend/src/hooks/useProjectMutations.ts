@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { projectsApi } from '@/lib/api';
 import type { CreateProject, UpdateProject, Project } from 'shared/types';
+import type { CreateProjectFromGitHubRequest } from '@/lib/api';
 
 interface UseProjectMutationsOptions {
   onCreateSuccess?: (project: Project) => void;
@@ -22,6 +23,21 @@ export function useProjectMutations(options?: UseProjectMutationsOptions) {
     },
     onError: (err) => {
       console.error('Failed to create project:', err);
+      options?.onCreateError?.(err);
+    },
+  });
+
+  const createProjectFromGithub = useMutation({
+    mutationKey: ['createProjectFromGithub'],
+    mutationFn: (data: CreateProjectFromGitHubRequest) =>
+      projectsApi.createFromGitHub(data),
+    onSuccess: (project: Project) => {
+      queryClient.setQueryData(['project', project.id], project);
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      options?.onCreateSuccess?.(project);
+    },
+    onError: (err) => {
+      console.error('Failed to import project from GitHub:', err);
       options?.onCreateError?.(err);
     },
   });
@@ -55,6 +71,7 @@ export function useProjectMutations(options?: UseProjectMutationsOptions) {
 
   return {
     createProject,
+    createProjectFromGithub,
     updateProject,
   };
 }

@@ -1,5 +1,7 @@
 #![cfg(feature = "cloud")]
 
+use std::path::PathBuf;
+
 use axum::{
     Json, Router,
     extract::{Query, State},
@@ -7,22 +9,20 @@ use axum::{
     response::Json as ResponseJson,
     routing::{get, post},
 };
+use db::models::project::{CreateProject, Project};
+use deployment::Deployment;
 use serde::Deserialize;
+use serde_json::json;
+use services::services::{
+    git::GitService,
+    github_service::{GitHubService, GitHubServiceError, RepositoryInfo},
+};
+use tokio::fs;
 use ts_rs::TS;
+use utils::response::ApiResponse;
 use uuid::Uuid;
 
-use crate::{
-    app_state::AppState,
-    models::{
-        ApiResponse,
-        project::{CreateProject, Project},
-    },
-    services::{
-        GitHubServiceError,
-        git_service::GitService,
-        github_service::{GitHubService, RepositoryInfo},
-    },
-};
+use crate::DeploymentImpl;
 
 #[derive(Debug, Deserialize, TS)]
 pub struct CreateProjectFromGitHub {
@@ -41,27 +41,25 @@ pub struct RepositoryQuery {
 
 /// List GitHub repositories for the authenticated user
 pub async fn list_repositories(
-    State(app_state): State<AppState>,
+    State(deployment): State<DeploymentImpl>,
     Query(params): Query<RepositoryQuery>,
 ) -> Result<ResponseJson<ApiResponse<Vec<RepositoryInfo>>>, StatusCode> {
     let page = params.page.unwrap_or(1);
 
     // Get GitHub configuration
     let github_config = {
-        let config = app_state.get_config().read().await;
+        let config = deployment.config().read().await;
         config.github.clone()
     };
 
-    // Check if GitHub is configured
-    if github_config.token.is_none() {
+    let Some(github_token) = github_config.token() else {
         return Ok(ResponseJson(ApiResponse::error(
             "GitHub token not configured. Please authenticate with GitHub first.",
         )));
-    }
+    };
 
     // Create GitHub service with token
-    let github_token = github_config.token.as_deref().unwrap();
-    let github_service = match GitHubService::new(github_token) {
+    let github_service = match GitHubService::new(&github_token) {
         Ok(service) => service,
         Err(e) => {
             tracing::error!("Failed to create GitHub service: {}", e);
@@ -94,13 +92,13 @@ pub async fn list_repositories(
 
 /// Create a project from a GitHub repository
 pub async fn create_project_from_github(
-    State(app_state): State<AppState>,
+    State(deployment): State<DeploymentImpl>,
     Json(payload): Json<CreateProjectFromGitHub>,
 ) -> Result<ResponseJson<ApiResponse<Project>>, StatusCode> {
     tracing::debug!("Creating project '{}' from GitHub repository", payload.name);
 
     // Get workspace path
-    let workspace_path = match app_state.get_workspace_path().await {
+    let workspace_path = match resolve_workspace_path(&deployment).await {
         Ok(path) => path,
         Err(e) => {
             tracing::error!("Failed to get workspace path: {}", e);
@@ -118,7 +116,9 @@ pub async fn create_project_from_github(
     }
 
     // Check if git repo path is already used by another project
-    match Project::find_by_git_repo_path(&app_state.db_pool, &target_path.to_string_lossy()).await {
+    match Project::find_by_git_repo_path(&deployment.db().pool, &target_path.to_string_lossy())
+        .await
+    {
         Ok(Some(_)) => {
             return Ok(ResponseJson(ApiResponse::error(
                 "A project with this git repository path already exists",
@@ -135,8 +135,8 @@ pub async fn create_project_from_github(
 
     // Get GitHub token
     let github_token = {
-        let config = app_state.get_config().read().await;
-        config.github.token.clone()
+        let config = deployment.config().read().await;
+        config.github.token()
     };
 
     // Clone the repository
@@ -167,23 +167,24 @@ pub async fn create_project_from_github(
         setup_script: payload.setup_script,
         dev_script: payload.dev_script,
         cleanup_script: payload.cleanup_script,
+        copy_files: None,
     };
 
     let project_id = Uuid::new_v4();
-    match Project::create(&app_state.db_pool, &project_data, project_id).await {
+    match Project::create(&deployment.db().pool, &project_data, project_id).await {
         Ok(project) => {
             // Track project creation event
-            app_state
-                .track_analytics_event(
+            deployment
+                .track_if_analytics_allowed(
                     "project_created",
-                    Some(serde_json::json!({
+                    json!({
                         "project_id": project.id.to_string(),
                         "repository_id": payload.repository_id,
                         "clone_url": payload.clone_url,
                         "has_setup_script": has_setup_script,
                         "has_dev_script": has_dev_script,
                         "trigger": "github",
-                    })),
+                    }),
                 )
                 .await;
 
@@ -205,8 +206,14 @@ pub async fn create_project_from_github(
 }
 
 /// Create router for GitHub-related endpoints (only registered in cloud mode)
-pub fn github_router() -> Router<AppState> {
+pub fn github_router() -> Router<DeploymentImpl> {
     Router::new()
         .route("/github/repositories", get(list_repositories))
         .route("/projects/from-github", post(create_project_from_github))
+}
+
+async fn resolve_workspace_path(deployment: &DeploymentImpl) -> Result<PathBuf, std::io::Error> {
+    let base_path = deployment.workspace_dir();
+    fs::create_dir_all(&base_path).await?;
+    Ok(base_path)
 }

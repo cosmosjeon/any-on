@@ -203,3 +203,12 @@ impl Deployment for LocalDeployment {
         &self.drafts
     }
 }
+
+impl LocalDeployment {
+    /// Expose the underlying local container service so other deployments can
+    /// compose additional behavior (e.g., cloud wrappers) without re-building
+    /// the entire stack.
+    pub fn local_container_service(&self) -> &LocalContainerService {
+        &self.container
+    }
+}

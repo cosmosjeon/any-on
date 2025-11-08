@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -10,14 +10,16 @@ import {
   FolderGit,
   FolderPlus,
   ArrowLeft,
+  Github,
 } from 'lucide-react';
 import { useScriptPlaceholders } from '@/hooks/useScriptPlaceholders';
 import { CopyFilesField } from './copy-files-field';
 // Removed collapsible sections for simplicity; show fields always in edit mode
-import { fileSystemApi } from '@/lib/api';
+import { fileSystemApi, githubApi } from '@/lib/api';
 import { showFolderPicker } from '@/lib/modals';
-import { DirectoryEntry } from 'shared/types';
+import { DirectoryEntry, RepositoryInfo } from 'shared/types';
 import { generateProjectNameFromPath } from '@/utils/string';
+import { Badge } from '@/components/ui/badge';
 
 interface ProjectFormFieldsProps {
   isEditing: boolean;
@@ -42,6 +44,10 @@ interface ProjectFormFieldsProps {
   setError: (error: string) => void;
   projectId?: string;
   onCreateProject?: (path: string, name: string) => void;
+  githubAvailable: boolean;
+  onConnectGithub?: () => void;
+  onImportFromGithub?: (repo: RepositoryInfo) => void;
+  importingFromGithub?: boolean;
 }
 
 export function ProjectFormFields({
@@ -67,6 +73,10 @@ export function ProjectFormFields({
   setError,
   projectId,
   onCreateProject,
+  githubAvailable,
+  onConnectGithub,
+  onImportFromGithub,
+  importingFromGithub = false,
 }: ProjectFormFieldsProps) {
   const placeholders = useScriptPlaceholders();
 
@@ -75,18 +85,29 @@ export function ProjectFormFields({
   const [loading, setLoading] = useState(false);
   const [reposError, setReposError] = useState('');
   const [showMoreOptions, setShowMoreOptions] = useState(false);
-  const [showRecentRepos, setShowRecentRepos] = useState(false);
+  const [selectionView, setSelectionView] =
+    useState<'options' | 'local' | 'github'>('options');
+  const [githubRepos, setGithubRepos] = useState<RepositoryInfo[]>([]);
+  const [githubLoading, setGithubLoading] = useState(false);
+  const [githubError, setGithubError] = useState('');
+  const [githubPage, setGithubPage] = useState(1);
+  const [githubHasMore, setGithubHasMore] = useState(false);
 
   // Lazy-load repositories when the user navigates to the repo list
   useEffect(() => {
-    if (!isEditing && showRecentRepos && !loading && allRepos.length === 0) {
+    if (
+      !isEditing &&
+      selectionView === 'local' &&
+      !loading &&
+      allRepos.length === 0
+    ) {
       loadRecentRepos();
     }
-  }, [isEditing, showRecentRepos]);
+  }, [isEditing, selectionView, loading, allRepos.length]);
 
-  const loadRecentRepos = async () => {
-    setLoading(true);
-    setReposError('');
+const loadRecentRepos = async () => {
+  setLoading(true);
+  setReposError('');
 
     try {
       const discoveredRepos = await fileSystemApi.listGitRepos();
@@ -99,6 +120,40 @@ export function ProjectFormFields({
     }
   };
 
+  const fetchGithubRepos = useCallback(
+    async (page: number) => {
+      if (!githubAvailable) return;
+      setGithubLoading(true);
+      setGithubError('');
+
+      try {
+        const repos = await githubApi.listRepositories(page);
+        setGithubRepos(repos);
+        setGithubHasMore(repos.length === 50);
+      } catch (err) {
+        console.error('Failed to load GitHub repositories:', err);
+        setGithubError(
+          'Failed to load GitHub repositories. Please try again or reconnect your GitHub account.'
+        );
+      } finally {
+        setGithubLoading(false);
+      }
+    },
+    [githubAvailable]
+  );
+
+  useEffect(() => {
+    if (isEditing || selectionView !== 'github') {
+      return;
+    }
+    if (!githubAvailable) {
+      setGithubError('Connect your GitHub account to view repositories.');
+      setGithubRepos([]);
+      return;
+    }
+    fetchGithubRepos(githubPage);
+  }, [isEditing, selectionView, githubPage, githubAvailable, fetchGithubRepos]);
+
   return (
     <>
       {!isEditing && repoMode === 'existing' && (
@@ -106,12 +161,15 @@ export function ProjectFormFields({
           {/* Show selection interface only when no repo is selected */}
           <>
             {/* Initial choice cards - Stage 1 */}
-            {!showRecentRepos && (
+            {selectionView === 'options' && (
               <>
                 {/* From Git Repository card */}
                 <div
                   className="p-4 border cursor-pointer hover:shadow-md transition-shadow rounded-lg bg-card"
-                  onClick={() => setShowRecentRepos(true)}
+                  onClick={() => {
+                    setSelectionView('local');
+                    setError('');
+                  }}
                 >
                   <div className="flex items-start gap-3">
                     <FolderGit className="h-5 w-5 mt-0.5 flex-shrink-0 text-muted-foreground" />
@@ -146,17 +204,63 @@ export function ProjectFormFields({
                     </div>
                   </div>
                 </div>
+
+                {/* Import from GitHub card */}
+                <div
+                  className={`p-4 border rounded-lg bg-card transition-shadow ${
+                    githubAvailable
+                      ? 'cursor-pointer hover:shadow-md'
+                      : 'opacity-75'
+                  }`}
+                  onClick={() => {
+                    if (!githubAvailable) {
+                      onConnectGithub?.();
+                      return;
+                    }
+                    setGithubPage(1);
+                    setSelectionView('github');
+                    setError('');
+                  }}
+                >
+                  <div className="flex items-start gap-3">
+                    <Github className="h-5 w-5 mt-0.5 flex-shrink-0 text-muted-foreground" />
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-foreground">
+                        Import from GitHub
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Browse repositories in your GitHub account and clone
+                        them into Anyon
+                      </div>
+                      {!githubAvailable && (
+                        <div className="mt-3">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onConnectGithub?.();
+                            }}
+                          >
+                            Connect GitHub
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </>
             )}
 
             {/* Repository selection - Stage 2A */}
-            {showRecentRepos && (
+            {selectionView === 'local' && (
               <>
                 {/* Back button */}
                 <button
                   className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 mb-4"
                   onClick={() => {
-                    setShowRecentRepos(false);
+                    setSelectionView('options');
                     setError('');
                   }}
                 >
@@ -271,6 +375,115 @@ export function ProjectFormFields({
                 </div>
               </>
             )}
+
+            {selectionView === 'github' && (
+              <div className="space-y-4">
+                <button
+                  className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1"
+                  onClick={() => {
+                    setSelectionView('options');
+                    setGithubError('');
+                  }}
+                >
+                  <ArrowLeft className="h-3 w-3" />
+                  Back to options
+                </button>
+
+                {!githubAvailable ? (
+                  <div className="p-4 border rounded-lg bg-card">
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Connect your GitHub account to list repositories.
+                    </p>
+                    <Button size="sm" onClick={onConnectGithub}>
+                      Connect GitHub
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    {githubError && (
+                      <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>{githubError}</AlertDescription>
+                      </Alert>
+                    )}
+
+                    {githubLoading && (
+                      <div className="p-4 border rounded-lg bg-card flex items-center gap-3 text-sm text-muted-foreground">
+                        <div className="animate-spin h-5 w-5 border-2 border-muted-foreground border-t-transparent rounded-full" />
+                        Loading GitHub repositories...
+                      </div>
+                    )}
+
+                    {!githubLoading && !githubError && githubRepos.length === 0 && (
+                      <div className="p-4 border rounded-lg bg-card text-sm text-muted-foreground">
+                        No repositories found. You may need to grant access to more organizations.
+                      </div>
+                    )}
+
+                    {!githubLoading && githubRepos.length > 0 && (
+                      <div className="space-y-2">
+                        {githubRepos.map((repo) => (
+                          <div
+                            key={`${repo.owner}/${repo.name}`}
+                            className="p-4 border rounded-lg bg-card"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0 flex-1">
+                                <div className="font-medium text-foreground truncate">
+                                  {repo.full_name || repo.name}
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                  {repo.description || 'No description provided.'}
+                                </p>
+                              </div>
+                              <Badge variant={repo.private ? 'secondary' : 'outline'}>
+                                {repo.private ? 'Private' : 'Public'}
+                              </Badge>
+                            </div>
+                            <div className="flex flex-wrap items-center justify-between gap-3 mt-4">
+                              <span className="text-xs text-muted-foreground">
+                                Default branch: {repo.default_branch}
+                              </span>
+                              <Button
+                                size="sm"
+                                disabled={importingFromGithub}
+                                onClick={() => onImportFromGithub?.(repo)}
+                              >
+                                {importingFromGithub ? 'Importing…' : 'Import'}
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between pt-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={githubPage === 1 || githubLoading}
+                        onClick={() => setGithubPage((prev) => Math.max(1, prev - 1))}
+                      >
+                        Previous
+                      </Button>
+                      <span className="text-xs text-muted-foreground">
+                        Page {githubPage}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={!githubHasMore || githubLoading}
+                        onClick={() => setGithubPage((prev) => prev + 1)}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </>
         </div>
       )}
@@ -285,6 +498,7 @@ export function ProjectFormFields({
             size="sm"
             onClick={() => {
               setRepoMode('existing');
+              setSelectionView('options');
               setError('');
               setName('');
               setParentPath('');

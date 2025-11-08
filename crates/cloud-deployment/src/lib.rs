@@ -1,13 +1,21 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use async_trait::async_trait;
 use db::DBService;
 use deployment::{Deployment, DeploymentError};
-use local_deployment::LocalDeployment;
+use local_deployment::{LocalDeployment, container::LocalContainerService};
 use services::services::{
-    analytics::AnalyticsService, approvals::Approvals, auth::AuthService, config::Config,
-    container::ContainerService, drafts::DraftsService, events::EventService,
-    file_search_cache::FileSearchCache, filesystem::FilesystemService, git::GitService,
+    analytics::AnalyticsService,
+    approvals::Approvals,
+    auth::AuthService,
+    cloud_container::{CloudContainerService, CloudContainerSettings},
+    config::Config,
+    container::ContainerService,
+    drafts::DraftsService,
+    events::EventService,
+    file_search_cache::FileSearchCache,
+    filesystem::FilesystemService,
+    git::GitService,
     image::ImageService,
 };
 use tokio::sync::RwLock;
@@ -22,6 +30,7 @@ use config::CloudConfig;
 pub struct CloudDeployment {
     inner: LocalDeployment,
     cloud_config: CloudConfig,
+    container: CloudContainerService<LocalContainerService>,
 }
 
 impl CloudDeployment {
@@ -42,9 +51,18 @@ impl Deployment for CloudDeployment {
             .apply()
             .map_err(|err| DeploymentError::Other(err.into()))?;
         let inner = LocalDeployment::new().await?;
+        let container = CloudContainerService::new(
+            inner.local_container_service().clone(),
+            CloudContainerSettings {
+                default_image: cloud_config.container_image().to_string(),
+                ..CloudContainerSettings::default()
+            },
+        )
+        .await?;
         Ok(Self {
             inner,
             cloud_config,
+            container,
         })
     }
 
@@ -69,7 +87,7 @@ impl Deployment for CloudDeployment {
     }
 
     fn container(&self) -> &impl ContainerService {
-        self.inner.container()
+        &self.container
     }
 
     fn auth(&self) -> &AuthService {
@@ -106,5 +124,11 @@ impl Deployment for CloudDeployment {
 
     fn drafts(&self) -> &DraftsService {
         self.inner.drafts()
+    }
+}
+
+impl CloudDeployment {
+    pub fn workspace_dir(&self) -> PathBuf {
+        self.cloud_config.workspace_dir().clone()
     }
 }

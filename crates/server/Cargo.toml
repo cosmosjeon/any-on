@@ -9,7 +9,7 @@ uninlined-format-args = "allow"
 
 [features]
 default = []
-cloud = ["cloud-deployment"]
+cloud = ["cloud-deployment", "services/cloud"]
 
 [dependencies]
 deployment = { path = "../deployment" }
