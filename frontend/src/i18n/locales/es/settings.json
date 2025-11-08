@@ -81,12 +81,15 @@
         "manage": "Gestionar",
         "disconnect": "Desconectar",
         "helper": "Conecta tu cuenta de GitHub para acceder a repositorios privados y habilitar acciones avanzadas de Git.",
+        "cloudOnly": "GitHub integration is available only on cloud deployments.",
         "or": "O",
         "pat": {
           "label": "Token de Acceso Personal",
           "placeholder": "ghp_xxxxxxxxxxxxxxxxxxxx",
           "helper": "Token de Acceso Personal de GitHub con permisos 'repo'. Úsalo si los permisos OAuth son insuficientes para repositorios privados y repositorios de organizaciones.",
-          "createTokenLink": "Crear token aquí"
+          "createTokenLink": "Crear token aquí",
+          "saved": "Personal access token stored securely.",
+          "remove": "Remove token"
         }
       },
       "git": {

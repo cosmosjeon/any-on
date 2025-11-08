@@ -20,6 +20,7 @@ use services::services::{
     analytics::{AnalyticsContext, AnalyticsService},
     approvals::Approvals,
     auth::{AuthError, AuthService},
+    claude_auth::{ClaudeAuthError, ClaudeAuthManager},
     config::{Config, ConfigError},
     container::{ContainerError, ContainerService},
     drafts::DraftsService,
@@ -30,6 +31,7 @@ use services::services::{
     git::{GitService, GitServiceError},
     image::{ImageError, ImageService},
     pr_monitor::PrMonitorService,
+    secret_store::{SECRET_GITHUB_OAUTH, SECRET_GITHUB_PAT, SecretStore, SecretStoreError},
     worktree_manager::WorktreeError,
 };
 use sqlx::{Error as SqlxError, types::Uuid};
@@ -68,6 +70,10 @@ pub enum DeploymentError {
     #[error(transparent)]
     Config(#[from] ConfigError),
     #[error(transparent)]
+    SecretStore(#[from] SecretStoreError),
+    #[error(transparent)]
+    ClaudeAuth(#[from] ClaudeAuthError),
+    #[error(transparent)]
     Other(#[from] AnyhowError),
 }
 
@@ -105,6 +111,28 @@ pub trait Deployment: Clone + Send + Sync + 'static {
 
     fn drafts(&self) -> &DraftsService;
 
+    fn secret_store(&self) -> &SecretStore;
+
+    fn claude_auth(&self) -> &ClaudeAuthManager;
+
+    async fn github_token(&self) -> Result<Option<String>, SecretStoreError> {
+        if let Some(pat) = self
+            .secret_store()
+            .get_secret_string(self.user_id(), SECRET_GITHUB_PAT)
+            .await?
+        {
+            return Ok(Some(pat));
+        }
+        if let Some(token) = self
+            .secret_store()
+            .get_secret_string(self.user_id(), SECRET_GITHUB_OAUTH)
+            .await?
+        {
+            return Ok(Some(token));
+        }
+        Ok(None)
+    }
+
     async fn update_sentry_scope(&self) -> Result<(), DeploymentError> {
         let user_id = self.user_id();
         let config = self.config().read().await;
@@ -117,7 +145,6 @@ pub trait Deployment: Clone + Send + Sync + 'static {
 
     async fn spawn_pr_monitor_service(&self) -> tokio::task::JoinHandle<()> {
         let db = self.db().clone();
-        let config = self.config().clone();
         let analytics = self
             .analytics()
             .as_ref()
@@ -125,7 +152,9 @@ pub trait Deployment: Clone + Send + Sync + 'static {
                 user_id: self.user_id().to_string(),
                 analytics_service: analytics_service.clone(),
             });
-        PrMonitorService::spawn(db, config, analytics).await
+        let secret_store = self.secret_store().clone();
+        let user_id = self.user_id().to_string();
+        PrMonitorService::spawn(db, analytics, secret_store, user_id).await
     }
 
     async fn track_if_analytics_allowed(&self, event_name: &str, properties: Value) {

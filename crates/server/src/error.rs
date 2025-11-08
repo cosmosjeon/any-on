@@ -13,6 +13,7 @@ use git2::Error as Git2Error;
 use services::services::{
     auth::AuthError, config::ConfigError, container::ContainerError, drafts::DraftsServiceError,
     git::GitServiceError, github_service::GitHubServiceError, image::ImageError,
+    secret_store::SecretStoreError,
     worktree_manager::WorktreeError,
 };
 use thiserror::Error;
@@ -49,6 +50,8 @@ pub enum ApiError {
     Image(#[from] ImageError),
     #[error(transparent)]
     Drafts(#[from] DraftsServiceError),
+    #[error(transparent)]
+    SecretStore(#[from] SecretStoreError),
     #[error("Multipart error: {0}")]
     Multipart(#[from] MultipartError),
     #[error("IO error: {0}")]
@@ -111,6 +114,7 @@ impl IntoResponse for ApiError {
                     (StatusCode::INTERNAL_SERVER_ERROR, "ExecutionProcessError")
                 }
             },
+            ApiError::SecretStore(_) => (StatusCode::INTERNAL_SERVER_ERROR, "SecretStoreError"),
             ApiError::Io(_) => (StatusCode::INTERNAL_SERVER_ERROR, "IoError"),
             ApiError::Multipart(_) => (StatusCode::BAD_REQUEST, "MultipartError"),
             ApiError::Conflict(_) => (StatusCode::CONFLICT, "ConflictError"),

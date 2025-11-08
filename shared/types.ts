@@ -60,11 +60,15 @@ export type CreateImage = { file_path: string, original_name: string, mime_type:
 
 export type ApiResponse<T, E = T> = { success: boolean, data: T | null, error_data: E | null, message: string | null, };
 
-export type UserSystemInfo = { config: Config, analytics_user_id: string, environment: Environment, 
+export type UserSystemInfo = { config: Config, analytics_user_id: string, environment: Environment, github_secret_state: GitHubSecretState, claude_secret_state: ClaudeSecretState, is_cloud: boolean, 
 /**
  * Capabilities supported per executor (e.g., { "CLAUDE_CODE": ["SESSION_FORK"] })
  */
 capabilities: { [key in string]?: Array<BaseAgentCapability> }, executors: { [key in BaseCodingAgent]?: ExecutorConfig }, };
+
+export type GitHubSecretState = { has_oauth_token: boolean, has_pat: boolean, };
+
+export type ClaudeSecretState = { has_credentials: boolean, };
 
 export type Environment = { os_type: string, os_version: string, os_architecture: string, bitness: string, };
 
@@ -121,6 +125,8 @@ export type DeviceFlowStartResponse = { user_code: string, verification_uri: str
 export enum DevicePollStatus { SLOW_DOWN = "SLOW_DOWN", AUTHORIZATION_PENDING = "AUTHORIZATION_PENDING", SUCCESS = "SUCCESS" }
 
 export enum CheckTokenResponse { VALID = "VALID", INVALID = "INVALID" }
+
+export type ClaudeSessionResponse = { session_id: string, };
 
 export type GitBranch = { name: string, is_current: boolean, is_remote: boolean, last_commit_date: Date, };
 

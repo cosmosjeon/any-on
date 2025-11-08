@@ -81,12 +81,15 @@
         "manage": "Manage",
         "disconnect": "Disconnect",
         "helper": "Connect your GitHub account to access private repositories and enable advanced Git operations.",
+        "cloudOnly": "GitHub integration is available only on cloud deployments.",
         "or": "OR",
         "pat": {
           "label": "Personal Access Token",
           "placeholder": "ghp_xxxxxxxxxxxxxxxxxxxx",
           "helper": "GitHub Personal Access Token with 'repo' permissions. Use this if OAuth permissions are insufficient for private repositories and organisation owned repositories.",
-          "createTokenLink": "Create token here"
+          "createTokenLink": "Create token here",
+          "saved": "Personal access token stored securely.",
+          "remove": "Remove token"
         }
       },
       "git": {

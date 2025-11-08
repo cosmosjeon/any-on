@@ -51,6 +51,7 @@ import {
   RenameBranchResponse,
   RunAgentSetupRequest,
   RunAgentSetupResponse,
+  ClaudeSessionResponse,
 } from 'shared/types';
 
 // Re-export types for convenience
@@ -724,6 +725,40 @@ export const githubAuthApi = {
       method: 'POST',
     });
     return handleApiResponse<DevicePollStatus>(response);
+  },
+};
+
+export const claudeAuthApi = {
+  startSession: async (): Promise<ClaudeSessionResponse> => {
+    const response = await makeRequest('/api/auth/claude/session', {
+      method: 'POST',
+    });
+    return handleApiResponse<ClaudeSessionResponse>(response);
+  },
+  sendInput: async (sessionId: string, input: string): Promise<void> => {
+    const response = await makeRequest(
+      `/api/auth/claude/session/${sessionId}/input`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ input }),
+      }
+    );
+    return handleApiResponse<void>(response);
+  },
+  cancelSession: async (sessionId: string): Promise<void> => {
+    const response = await makeRequest(
+      `/api/auth/claude/session/${sessionId}/cancel`,
+      {
+        method: 'POST',
+      }
+    );
+    return handleApiResponse<void>(response);
+  },
+  logout: async (): Promise<void> => {
+    const response = await makeRequest('/api/auth/claude/logout', {
+      method: 'POST',
+    });
+    return handleApiResponse<void>(response);
   },
 };
 

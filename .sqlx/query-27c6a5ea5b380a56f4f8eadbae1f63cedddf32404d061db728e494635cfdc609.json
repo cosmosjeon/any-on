@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            INSERT INTO secrets (id, user_id, provider, name, secret_blob, key_version)\n            VALUES ($1, $2, $3, $4, $5, $6)\n            ON CONFLICT(user_id, provider, name)\n            DO UPDATE SET\n                secret_blob = excluded.secret_blob,\n                key_version = excluded.key_version,\n                updated_at = datetime('now', 'subsec')\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "27c6a5ea5b380a56f4f8eadbae1f63cedddf32404d061db728e494635cfdc609"
+}

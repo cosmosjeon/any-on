@@ -58,6 +58,8 @@ export function GeneralSettings() {
     loading,
     updateAndSaveConfig, // Use this on Save
     profiles,
+    githubSecretState,
+    isCloud,
   } = useUserSystem();
 
   // Draft state management
@@ -183,18 +185,32 @@ export function GeneralSettings() {
     updateAndSaveConfig({ onboarding_acknowledged: false });
   };
 
-  const isAuthenticated = !!(
-    config?.github?.username && config?.github?.oauth_token
+  const githubFeatureEnabled = isCloud;
+  const githubConnected = !!(
+    githubFeatureEnabled &&
+    config?.github?.username &&
+    githubSecretState?.has_oauth_token
   );
+  const patConfigured = !!githubSecretState?.has_pat;
 
   const handleLogout = useCallback(async () => {
     if (!config) return;
     updateAndSaveConfig({
       github: {
         ...config.github,
-        oauth_token: null,
+        oauth_token: '',
         username: null,
         primary_email: null,
+      },
+    });
+  }, [config, updateAndSaveConfig]);
+
+  const handleRemovePat = useCallback(async () => {
+    if (!config) return;
+    updateAndSaveConfig({
+      github: {
+        ...config.github,
+        pat: '',
       },
     });
   }, [config, updateAndSaveConfig]);
@@ -561,77 +577,101 @@ export function GeneralSettings() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {isAuthenticated ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 border rounded-lg">
-                <div>
-                  <p className="font-medium">
-                    {t('settings.general.github.connected', {
-                      username: config.github.username,
-                    })}
-                  </p>
-                  {config.github.primary_email && (
-                    <p className="text-sm text-muted-foreground">
-                      {config.github.primary_email}
-                    </p>
-                  )}
-                </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm">
-                      {t('settings.general.github.manage')}{' '}
-                      <ChevronDown className="ml-1 h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={handleLogout}>
-                      {t('settings.general.github.disconnect')}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
+          {!githubFeatureEnabled ? (
+            <Alert>
+              <AlertDescription>
+                {t('settings.general.github.cloudOnly')}
+              </AlertDescription>
+            </Alert>
           ) : (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                {t('settings.general.github.helper')}
-              </p>
-              <Button onClick={() => NiceModal.show('github-login')}>
-                {t('settings.general.github.connectButton')}
-              </Button>
-            </div>
-          )}
+            <>
+              {githubConnected ? (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div>
+                      <p className="font-medium">
+                        {t('settings.general.github.connected', {
+                          username: config.github.username,
+                        })}
+                      </p>
+                      {config.github.primary_email && (
+                        <p className="text-sm text-muted-foreground">
+                          {config.github.primary_email}
+                        </p>
+                      )}
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          {t('settings.general.github.manage')}{' '}
+                          <ChevronDown className="ml-1 h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={handleLogout}>
+                          {t('settings.general.github.disconnect')}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    {t('settings.general.github.helper')}
+                  </p>
+                  <Button onClick={() => NiceModal.show('github-login')}>
+                    {t('settings.general.github.connectButton')}
+                  </Button>
+                </div>
+              )}
 
-          <div className="space-y-2">
-            <Label htmlFor="github-token">
-              {t('settings.general.github.pat.label')}
-            </Label>
-            <Input
-              id="github-token"
-              type="password"
-              placeholder={t('settings.general.github.pat.placeholder')}
-              value={draft?.github.pat || ''}
-              onChange={(e) =>
-                updateDraft({
-                  github: {
-                    ...draft!.github,
-                    pat: e.target.value || null,
-                  },
-                })
-              }
-            />
-            <p className="text-sm text-muted-foreground">
-              {t('settings.general.github.pat.helper')}{' '}
-              <a
-                href="https://github.com/settings/tokens"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:underline"
-              >
-                {t('settings.general.github.pat.createTokenLink')}
-              </a>
-            </p>
-          </div>
+              <div className="space-y-2">
+                <Label htmlFor="github-token">
+                  {t('settings.general.github.pat.label')}
+                </Label>
+                <Input
+                  id="github-token"
+                  type="password"
+                  placeholder={t('settings.general.github.pat.placeholder')}
+                  value={draft?.github.pat || ''}
+                  onChange={(e) =>
+                    updateDraft({
+                      github: {
+                        ...draft!.github,
+                        pat: e.target.value || null,
+                      },
+                    })
+                  }
+                />
+                <p className="text-sm text-muted-foreground">
+                  {t('settings.general.github.pat.helper')}{' '}
+                  <a
+                    href="https://github.com/settings/tokens"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline"
+                  >
+                    {t('settings.general.github.pat.createTokenLink')}
+                  </a>
+                </p>
+                {patConfigured && (
+                  <div className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+                    <span>
+                      {t('settings.general.github.pat.saved')}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleRemovePat}
+                    >
+                      {t('settings.general.github.pat.remove')}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 

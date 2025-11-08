@@ -12,6 +12,7 @@ declare module '@ebay/nice-modal-react' {
   interface ModalArgs {
     // Existing modals
     'github-login': void;
+    'claude-login': void;
     'create-pr': {
       attempt: TaskAttempt;
       task: TaskWithAttemptStatus;

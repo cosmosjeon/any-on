@@ -17,6 +17,8 @@ use services::services::{
     filesystem::FilesystemService,
     git::GitService,
     image::ImageService,
+    claude_auth::ClaudeAuthManager,
+    secret_store::SecretStore,
 };
 use tokio::sync::RwLock;
 use utils::msg_store::MsgStore;
@@ -124,6 +126,14 @@ impl Deployment for CloudDeployment {
 
     fn drafts(&self) -> &DraftsService {
         self.inner.drafts()
+    }
+
+    fn secret_store(&self) -> &SecretStore {
+        self.inner.secret_store()
+    }
+
+    fn claude_auth(&self) -> &ClaudeAuthManager {
+        self.inner.claude_auth()
     }
 }
 

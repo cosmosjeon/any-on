@@ -15,6 +15,7 @@ import './types/modals';
 // Import and register modals
 import {
   GitHubLoginDialog,
+  ClaudeLoginDialog,
   CreatePRDialog,
   ConfirmDialog,
   DisclaimerDialog,
@@ -42,6 +43,7 @@ import { EditBranchNameDialog } from './components/dialogs/tasks/EditBranchNameD
 
 // Register modals
 NiceModal.register('github-login', GitHubLoginDialog);
+NiceModal.register('claude-login', ClaudeLoginDialog);
 NiceModal.register('create-pr', CreatePRDialog);
 NiceModal.register('confirm', ConfirmDialog);
 NiceModal.register('disclaimer', DisclaimerDialog);
