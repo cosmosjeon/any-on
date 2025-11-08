@@ -7,10 +7,15 @@ default-run = "server"
 [lints.clippy]
 uninlined-format-args = "allow"
 
+[features]
+default = []
+cloud = ["cloud-deployment"]
+
 [dependencies]
 deployment = { path = "../deployment" }
 executors = { path = "../executors" }
 local-deployment = { path = "../local-deployment" }
+cloud-deployment = { path = "../cloud-deployment", optional = true }
 utils = { path = "../utils" }
 db = { path = "../db" }
 services = { path = "../services" }
@@ -53,4 +58,3 @@ tower = { version = "0.4", features = ["util"] }
 
 [build-dependencies]
 dotenv = "0.15"
-

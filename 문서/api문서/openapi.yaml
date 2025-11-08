@@ -1,0 +1,1917 @@
+openapi: 3.0.3
+info:
+  title: Anyon API
+  description: |
+    Anyon is a task management and AI-powered code execution platform that integrates with git repositories and AI coding agents.
+
+    ## Features
+    - Project and task management
+    - AI coding agent integration (Claude Code, AMP, Gemini, etc.)
+    - Git worktree isolation for each task attempt
+    - Real-time execution streaming via WebSocket and SSE
+    - GitHub integration (OAuth, PR creation)
+    - File and image management
+    - MCP (Model Context Protocol) server support
+
+    ## Authentication
+    Uses GitHub OAuth device flow for user authentication and GitHub API access.
+
+    ## Type Safety
+    All TypeScript types are auto-generated from Rust structs via ts-rs.
+    Import from `/shared/types.ts` in your frontend application.
+  version: 1.0.0
+  contact:
+    name: Anyon API Support
+  license:
+    name: MIT
+
+servers:
+  - url: http://127.0.0.1:{port}/api
+    description: Local development server
+    variables:
+      port:
+        default: '8080'
+        description: Auto-assigned port (check ~/.anyon/port)
+
+tags:
+  - name: Health
+    description: API health check
+  - name: System
+    description: System configuration and info
+  - name: Authentication
+    description: GitHub OAuth authentication
+  - name: Projects
+    description: Project management
+  - name: Tasks
+    description: Task management
+  - name: Task Attempts
+    description: Task execution attempts
+  - name: Execution Processes
+    description: AI agent and script execution
+  - name: Images
+    description: Image upload and management
+  - name: Events
+    description: Real-time event streaming
+  - name: Filesystem
+    description: Filesystem operations
+  - name: Containers
+    description: Container (worktree) information
+  - name: Tags
+    description: Reusable text snippets
+  - name: Approvals
+    description: Tool execution approvals
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      description: Verify the API is running
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /info:
+    get:
+      tags: [System]
+      summary: Get user system info
+      description: Get complete system information including config, executor profiles, and capabilities
+      responses:
+        '200':
+          description: System information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_UserSystemInfo'
+
+  /config:
+    put:
+      tags: [System]
+      summary: Update configuration
+      description: Update user configuration (theme, executor, GitHub settings, etc.)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Config'
+      responses:
+        '200':
+          description: Configuration updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_Config'
+
+  /mcp-config:
+    get:
+      tags: [System]
+      summary: Get MCP server configuration
+      description: Get Model Context Protocol server configuration for an executor
+      parameters:
+        - name: executor
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/BaseCodingAgent'
+      responses:
+        '200':
+          description: MCP configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_GetMcpServerResponse'
+    post:
+      tags: [System]
+      summary: Update MCP servers
+      description: Update MCP server configuration for an executor
+      parameters:
+        - name: executor
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/BaseCodingAgent'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMcpServersBody'
+      responses:
+        '200':
+          description: MCP servers updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_String'
+
+  /profiles:
+    get:
+      tags: [System]
+      summary: Get executor profiles
+      description: Get all executor profile configurations as JSON
+      responses:
+        '200':
+          description: Executor profiles
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_ProfilesContent'
+    put:
+      tags: [System]
+      summary: Update executor profiles
+      description: Update executor profile configurations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: string
+              description: Raw JSON string of ExecutorConfigs
+      responses:
+        '200':
+          description: Profiles updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_String'
+
+  /auth/github/device/start:
+    post:
+      tags: [Authentication]
+      summary: Start GitHub device flow
+      description: Initialize GitHub OAuth device flow
+      responses:
+        '200':
+          description: Device flow started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_DeviceFlowStartResponse'
+
+  /auth/github/device/poll:
+    post:
+      tags: [Authentication]
+      summary: Poll device flow
+      description: Poll for device flow authorization completion
+      responses:
+        '200':
+          description: Polling status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_DevicePollStatus'
+
+  /auth/github/check:
+    get:
+      tags: [Authentication]
+      summary: Check GitHub token
+      description: Verify if stored GitHub token is valid
+      responses:
+        '200':
+          description: Token status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_CheckTokenResponse'
+
+  /projects:
+    get:
+      tags: [Projects]
+      summary: List projects
+      description: Get all projects
+      responses:
+        '200':
+          description: Projects list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_ArrayProject'
+    post:
+      tags: [Projects]
+      summary: Create project
+      description: Create a new project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProject'
+      responses:
+        '200':
+          description: Project created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_Project'
+
+  /projects/{id}:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathParam'
+    get:
+      tags: [Projects]
+      summary: Get project
+      description: Get a specific project by ID
+      responses:
+        '200':
+          description: Project details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_Project'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Projects]
+      summary: Update project
+      description: Update an existing project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProject'
+      responses:
+        '200':
+          description: Project updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_Project'
+    delete:
+      tags: [Projects]
+      summary: Delete project
+      description: Delete a project (cascade deletes tasks and attempts)
+      responses:
+        '200':
+          description: Project deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_Null'
+
+  /projects/{id}/branches:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathParam'
+    get:
+      tags: [Projects]
+      summary: Get project branches
+      description: Get all git branches in the project repository
+      responses:
+        '200':
+          description: Branches list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_ArrayGitBranch'
+
+  /projects/{id}/search:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathParam'
+    get:
+      tags: [Projects]
+      summary: Search project files
+      description: Search for files in project repository
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Search query string
+        - name: mode
+          in: query
+          schema:
+            type: string
+            enum: [TaskForm, Settings]
+          description: Search mode
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_ArraySearchResult'
+
+  /projects/{id}/open-editor:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathParam'
+    post:
+      tags: [Projects]
+      summary: Open project in editor
+      description: Open project directory in configured code editor
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                editor_type:
+                  type: string
+                  nullable: true
+      responses:
+        '200':
+          description: Editor opened
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_OpenEditorResponse'
+
+  /tasks:
+    get:
+      tags: [Tasks]
+      summary: List tasks
+      description: Get all tasks for a project
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Tasks list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_ArrayTaskWithAttemptStatus'
+    post:
+      tags: [Tasks]
+      summary: Create task
+      description: Create a new task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTask'
+      responses:
+        '200':
+          description: Task created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_Task'
+
+  /tasks/create-and-start:
+    post:
+      tags: [Tasks]
+      summary: Create and start task
+      description: Create a task and immediately start a task attempt with an AI executor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAndStartTaskRequest'
+      responses:
+        '200':
+          description: Task created and started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_TaskWithAttemptStatus'
+
+  /tasks/{task_id}:
+    parameters:
+      - name: task_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Tasks]
+      summary: Get task
+      description: Get a specific task by ID
+      responses:
+        '200':
+          description: Task details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_Task'
+    put:
+      tags: [Tasks]
+      summary: Update task
+      description: Update an existing task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTask'
+      responses:
+        '200':
+          description: Task updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_Task'
+    delete:
+      tags: [Tasks]
+      summary: Delete task
+      description: Delete a task (cascade deletes attempts and processes)
+      responses:
+        '202':
+          description: Task deletion accepted (background cleanup)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_Null'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /task-attempts:
+    get:
+      tags: [Task Attempts]
+      summary: List task attempts
+      description: Get all attempts for a task
+      parameters:
+        - name: task_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Task attempts list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_ArrayTaskAttempt'
+    post:
+      tags: [Task Attempts]
+      summary: Create task attempt
+      description: Create a new task attempt and start initial execution
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaskAttemptBody'
+      responses:
+        '200':
+          description: Task attempt created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_TaskAttempt'
+
+  /task-attempts/{id}:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathParam'
+    get:
+      tags: [Task Attempts]
+      summary: Get task attempt
+      description: Get a specific task attempt
+      responses:
+        '200':
+          description: Task attempt details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_TaskAttempt'
+
+  /task-attempts/{id}/follow-up:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathParam'
+    post:
+      tags: [Task Attempts]
+      summary: Send follow-up
+      description: Send a follow-up message/instruction to the AI agent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFollowUpAttempt'
+      responses:
+        '200':
+          description: Follow-up sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_ExecutionProcess'
+
+  /task-attempts/{id}/branch-status:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathParam'
+    get:
+      tags: [Task Attempts]
+      summary: Get branch status
+      description: Get detailed git branch status for the task attempt
+      responses:
+        '200':
+          description: Branch status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_BranchStatus'
+
+  /task-attempts/{id}/merge:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathParam'
+    post:
+      tags: [Task Attempts]
+      summary: Merge to target branch
+      description: Merge task attempt changes directly to target branch
+      responses:
+        '200':
+          description: Merged successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_Null'
+
+  /task-attempts/{id}/push:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathParam'
+    post:
+      tags: [Task Attempts]
+      summary: Push branch to GitHub
+      description: Push the task attempt branch to GitHub remote
+      responses:
+        '200':
+          description: Pushed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_Null'
+
+  /task-attempts/{id}/pr:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathParam'
+    post:
+      tags: [Task Attempts]
+      summary: Create GitHub pull request
+      description: Push branch and create a GitHub pull request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGitHubPrRequest'
+      responses:
+        '200':
+          description: PR created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_String'
+
+  /task-attempts/{id}/rebase:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathParam'
+    post:
+      tags: [Task Attempts]
+      summary: Rebase on target branch
+      description: Rebase the task attempt branch onto target branch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RebaseTaskAttemptRequest'
+      responses:
+        '200':
+          description: Rebased successfully or conflict error
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ApiResponse_Null'
+                  - $ref: '#/components/schemas/ApiResponse_GitOperationError'
+
+  /task-attempts/{id}/stop:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathParam'
+    post:
+      tags: [Task Attempts]
+      summary: Stop execution
+      description: Stop all running execution processes for this attempt
+      responses:
+        '200':
+          description: Stopped successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_Null'
+
+  /execution-processes:
+    get:
+      tags: [Execution Processes]
+      summary: List execution processes
+      description: Get all execution processes for a task attempt
+      parameters:
+        - name: task_attempt_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: show_soft_deleted
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Execution processes list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_ArrayExecutionProcess'
+
+  /execution-processes/{id}:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathParam'
+    get:
+      tags: [Execution Processes]
+      summary: Get execution process
+      description: Get a specific execution process
+      responses:
+        '200':
+          description: Execution process details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_ExecutionProcess'
+
+  /execution-processes/{id}/stop:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathParam'
+    post:
+      tags: [Execution Processes]
+      summary: Stop execution process
+      description: Stop a running execution process
+      responses:
+        '200':
+          description: Stopped successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_Null'
+
+  /images/upload:
+    post:
+      tags: [Images]
+      summary: Upload image
+      description: Upload an image file
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Image uploaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_ImageResponse'
+
+  /images/{id}/file:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathParam'
+    get:
+      tags: [Images]
+      summary: Get image file
+      description: Serve the actual image file
+      responses:
+        '200':
+          description: Image file
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+
+  /images/{id}:
+    parameters:
+      - $ref: '#/components/parameters/UuidPathParam'
+    delete:
+      tags: [Images]
+      summary: Delete image
+      description: Delete an image and its file
+      responses:
+        '200':
+          description: Image deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_Null'
+
+  /filesystem/directory:
+    get:
+      tags: [Filesystem]
+      summary: List directory
+      description: List contents of a directory
+      parameters:
+        - name: path
+          in: query
+          schema:
+            type: string
+          description: Directory path (defaults to home directory)
+      responses:
+        '200':
+          description: Directory listing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_DirectoryListResponse'
+
+  /filesystem/git-repos:
+    get:
+      tags: [Filesystem]
+      summary: List git repositories
+      description: Recursively find git repositories
+      parameters:
+        - name: path
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Git repositories list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_ArrayDirectoryEntry'
+
+  /containers/info:
+    get:
+      tags: [Containers]
+      summary: Get container info
+      description: Resolve container path to task/project info
+      parameters:
+        - name: ref
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Container reference (worktree path)
+      responses:
+        '200':
+          description: Container info
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse_ContainerInfo'
+
+components:
+  parameters:
+    UuidPathParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponse_Null'
+          example:
+            success: false
+            data: null
+            error_data: null
+            message: "Resource not found"
+
+    Conflict:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponse_Null'
+          example:
+            success: false
+            data: null
+            error_data: null
+            message: "Task has running execution processes"
+
+  schemas:
+    ApiResponse_Null:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        data:
+          nullable: true
+        error_data:
+          nullable: true
+        message:
+          type: string
+          nullable: true
+
+    ApiResponse_String:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        data:
+          type: string
+          nullable: true
+        error_data:
+          nullable: true
+        message:
+          type: string
+          nullable: true
+
+    ApiResponse_UserSystemInfo:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/UserSystemInfo'
+        error_data:
+          nullable: true
+        message:
+          type: string
+          nullable: true
+
+    ApiResponse_Config:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/Config'
+        error_data:
+          nullable: true
+        message:
+          type: string
+          nullable: true
+
+    ApiResponse_Project:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/Project'
+        error_data:
+          nullable: true
+        message:
+          type: string
+          nullable: true
+
+    ApiResponse_ArrayProject:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Project'
+        error_data:
+          nullable: true
+        message:
+          type: string
+          nullable: true
+
+    ApiResponse_Task:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/Task'
+        error_data:
+          nullable: true
+        message:
+          type: string
+          nullable: true
+
+    ApiResponse_ArrayTaskWithAttemptStatus:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskWithAttemptStatus'
+        error_data:
+          nullable: true
+        message:
+          type: string
+          nullable: true
+
+    ApiResponse_TaskWithAttemptStatus:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/TaskWithAttemptStatus'
+        error_data:
+          nullable: true
+        message:
+          type: string
+          nullable: true
+
+    ApiResponse_TaskAttempt:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/TaskAttempt'
+        error_data:
+          nullable: true
+        message:
+          type: string
+          nullable: true
+
+    ApiResponse_ArrayTaskAttempt:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TaskAttempt'
+        error_data:
+          nullable: true
+        message:
+          type: string
+          nullable: true
+
+    ApiResponse_ExecutionProcess:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/ExecutionProcess'
+        error_data:
+          nullable: true
+        message:
+          type: string
+          nullable: true
+
+    ApiResponse_ArrayExecutionProcess:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExecutionProcess'
+        error_data:
+          nullable: true
+        message:
+          type: string
+          nullable: true
+
+    ApiResponse_BranchStatus:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/BranchStatus'
+        error_data:
+          nullable: true
+        message:
+          type: string
+          nullable: true
+
+    ApiResponse_ImageResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/ImageResponse'
+        error_data:
+          nullable: true
+        message:
+          type: string
+          nullable: true
+
+    ApiResponse_DirectoryListResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/DirectoryListResponse'
+        error_data:
+          nullable: true
+        message:
+          type: string
+          nullable: true
+
+    ApiResponse_ArrayDirectoryEntry:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/DirectoryEntry'
+        error_data:
+          nullable: true
+        message:
+          type: string
+          nullable: true
+
+    ApiResponse_ArrayGitBranch:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/GitBranch'
+        error_data:
+          nullable: true
+        message:
+          type: string
+          nullable: true
+
+    ApiResponse_ArraySearchResult:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchResult'
+        error_data:
+          nullable: true
+        message:
+          type: string
+          nullable: true
+
+    ApiResponse_OpenEditorResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/OpenEditorResponse'
+        error_data:
+          nullable: true
+        message:
+          type: string
+          nullable: true
+
+    ApiResponse_DeviceFlowStartResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/DeviceFlowStartResponse'
+        error_data:
+          nullable: true
+        message:
+          type: string
+          nullable: true
+
+    ApiResponse_DevicePollStatus:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/DevicePollStatus'
+        error_data:
+          nullable: true
+        message:
+          type: string
+          nullable: true
+
+    ApiResponse_CheckTokenResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/CheckTokenResponse'
+        error_data:
+          nullable: true
+        message:
+          type: string
+          nullable: true
+
+    ApiResponse_GetMcpServerResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/GetMcpServerResponse'
+        error_data:
+          nullable: true
+        message:
+          type: string
+          nullable: true
+
+    ApiResponse_ProfilesContent:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/ProfilesContent'
+        error_data:
+          nullable: true
+        message:
+          type: string
+          nullable: true
+
+    ApiResponse_ContainerInfo:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/ContainerInfo'
+        error_data:
+          nullable: true
+        message:
+          type: string
+          nullable: true
+
+    ApiResponse_GitOperationError:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+          example: false
+        data:
+          nullable: true
+        error_data:
+          $ref: '#/components/schemas/GitOperationError'
+        message:
+          type: string
+          nullable: true
+
+    UserSystemInfo:
+      type: object
+      required: [config, analytics_user_id, environment]
+      properties:
+        config:
+          $ref: '#/components/schemas/Config'
+        analytics_user_id:
+          type: string
+        environment:
+          $ref: '#/components/schemas/Environment'
+        capabilities:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              $ref: '#/components/schemas/BaseAgentCapability'
+
+    Config:
+      type: object
+      required: [config_version, theme, executor_profile]
+      properties:
+        config_version:
+          type: string
+        theme:
+          $ref: '#/components/schemas/ThemeMode'
+        executor_profile:
+          $ref: '#/components/schemas/ExecutorProfileId'
+        disclaimer_acknowledged:
+          type: boolean
+        onboarding_acknowledged:
+          type: boolean
+        github_login_acknowledged:
+          type: boolean
+        telemetry_acknowledged:
+          type: boolean
+        notifications:
+          $ref: '#/components/schemas/NotificationConfig'
+        editor:
+          $ref: '#/components/schemas/EditorConfig'
+        github:
+          $ref: '#/components/schemas/GitHubConfig'
+        analytics_enabled:
+          type: boolean
+          nullable: true
+        workspace_dir:
+          type: string
+          nullable: true
+        git_branch_prefix:
+          type: string
+        language:
+          $ref: '#/components/schemas/UiLanguage'
+
+    Environment:
+      type: object
+      properties:
+        os_type:
+          type: string
+        os_version:
+          type: string
+        os_architecture:
+          type: string
+        bitness:
+          type: string
+
+    Project:
+      type: object
+      required: [id, name, git_repo_path, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        git_repo_path:
+          type: string
+        setup_script:
+          type: string
+          nullable: true
+        dev_script:
+          type: string
+          nullable: true
+        cleanup_script:
+          type: string
+          nullable: true
+        copy_files:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateProject:
+      type: object
+      required: [name, git_repo_path, use_existing_repo]
+      properties:
+        name:
+          type: string
+        git_repo_path:
+          type: string
+        use_existing_repo:
+          type: boolean
+        setup_script:
+          type: string
+          nullable: true
+        dev_script:
+          type: string
+          nullable: true
+        cleanup_script:
+          type: string
+          nullable: true
+        copy_files:
+          type: string
+          nullable: true
+
+    UpdateProject:
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        git_repo_path:
+          type: string
+          nullable: true
+        setup_script:
+          type: string
+          nullable: true
+        dev_script:
+          type: string
+          nullable: true
+        cleanup_script:
+          type: string
+          nullable: true
+        copy_files:
+          type: string
+          nullable: true
+
+    Task:
+      type: object
+      required: [id, project_id, title, status, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+        parent_task_attempt:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateTask:
+      type: object
+      required: [project_id, title]
+      properties:
+        project_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        parent_task_attempt:
+          type: string
+          format: uuid
+          nullable: true
+        image_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          nullable: true
+
+    UpdateTask:
+      type: object
+      properties:
+        title:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+          nullable: true
+        parent_task_attempt:
+          type: string
+          format: uuid
+          nullable: true
+        image_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          nullable: true
+
+    TaskWithAttemptStatus:
+      allOf:
+        - $ref: '#/components/schemas/Task'
+        - type: object
+          properties:
+            has_in_progress_attempt:
+              type: boolean
+            has_merged_attempt:
+              type: boolean
+            last_attempt_failed:
+              type: boolean
+            executor:
+              type: string
+
+    CreateAndStartTaskRequest:
+      type: object
+      required: [task, executor_profile_id, base_branch]
+      properties:
+        task:
+          $ref: '#/components/schemas/CreateTask'
+        executor_profile_id:
+          $ref: '#/components/schemas/ExecutorProfileId'
+        base_branch:
+          type: string
+
+    TaskAttempt:
+      type: object
+      required: [id, task_id, branch, target_branch, executor, worktree_deleted, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        task_id:
+          type: string
+          format: uuid
+        container_ref:
+          type: string
+          nullable: true
+        branch:
+          type: string
+        target_branch:
+          type: string
+        executor:
+          type: string
+        worktree_deleted:
+          type: boolean
+        setup_completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateTaskAttemptBody:
+      type: object
+      required: [task_id, executor_profile_id, base_branch]
+      properties:
+        task_id:
+          type: string
+          format: uuid
+        executor_profile_id:
+          $ref: '#/components/schemas/ExecutorProfileId'
+        base_branch:
+          type: string
+
+    CreateFollowUpAttempt:
+      type: object
+      required: [prompt]
+      properties:
+        prompt:
+          type: string
+        variant:
+          type: string
+          nullable: true
+        image_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          nullable: true
+        retry_process_id:
+          type: string
+          format: uuid
+          nullable: true
+        force_when_dirty:
+          type: boolean
+          nullable: true
+        perform_git_reset:
+          type: boolean
+          nullable: true
+
+    ExecutionProcess:
+      type: object
+      required: [id, task_attempt_id, run_reason, executor_action, status, dropped, started_at, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        task_attempt_id:
+          type: string
+          format: uuid
+        run_reason:
+          $ref: '#/components/schemas/ExecutionProcessRunReason'
+        executor_action:
+          type: object
+        before_head_commit:
+          type: string
+          nullable: true
+        after_head_commit:
+          type: string
+          nullable: true
+        status:
+          $ref: '#/components/schemas/ExecutionProcessStatus'
+        exit_code:
+          type: integer
+          nullable: true
+        dropped:
+          type: boolean
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    BranchStatus:
+      type: object
+      required: [target_branch_name, merges, is_rebase_in_progress, conflicted_files]
+      properties:
+        commits_ahead:
+          type: integer
+          nullable: true
+        commits_behind:
+          type: integer
+          nullable: true
+        has_uncommitted_changes:
+          type: boolean
+          nullable: true
+        head_oid:
+          type: string
+          nullable: true
+        uncommitted_count:
+          type: integer
+          nullable: true
+        untracked_count:
+          type: integer
+          nullable: true
+        target_branch_name:
+          type: string
+        remote_commits_ahead:
+          type: integer
+          nullable: true
+        remote_commits_behind:
+          type: integer
+          nullable: true
+        merges:
+          type: array
+          items:
+            type: object
+        is_rebase_in_progress:
+          type: boolean
+        conflict_op:
+          $ref: '#/components/schemas/ConflictOp'
+          nullable: true
+        conflicted_files:
+          type: array
+          items:
+            type: string
+
+    ImageResponse:
+      type: object
+      required: [id, file_path, original_name, size_bytes, hash, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        file_path:
+          type: string
+        original_name:
+          type: string
+        mime_type:
+          type: string
+          nullable: true
+        size_bytes:
+          type: integer
+        hash:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    DirectoryListResponse:
+      type: object
+      required: [entries, current_path]
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/DirectoryEntry'
+        current_path:
+          type: string
+
+    DirectoryEntry:
+      type: object
+      required: [name, path, is_directory, is_git_repo]
+      properties:
+        name:
+          type: string
+        path:
+          type: string
+        is_directory:
+          type: boolean
+        is_git_repo:
+          type: boolean
+        last_modified:
+          type: integer
+          nullable: true
+
+    GitBranch:
+      type: object
+      required: [name, is_current, is_remote, last_commit_date]
+      properties:
+        name:
+          type: string
+        is_current:
+          type: boolean
+        is_remote:
+          type: boolean
+        last_commit_date:
+          type: string
+          format: date-time
+
+    SearchResult:
+      type: object
+      required: [path, is_file, match_type]
+      properties:
+        path:
+          type: string
+        is_file:
+          type: boolean
+        match_type:
+          $ref: '#/components/schemas/SearchMatchType'
+
+    OpenEditorResponse:
+      type: object
+      properties:
+        url:
+          type: string
+          nullable: true
+
+    DeviceFlowStartResponse:
+      type: object
+      required: [user_code, verification_uri, expires_in, interval]
+      properties:
+        user_code:
+          type: string
+        verification_uri:
+          type: string
+        expires_in:
+          type: integer
+        interval:
+          type: integer
+
+    CreateGitHubPrRequest:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+        body:
+          type: string
+          nullable: true
+        target_branch:
+          type: string
+          nullable: true
+
+    RebaseTaskAttemptRequest:
+      type: object
+      properties:
+        old_base_branch:
+          type: string
+          nullable: true
+        new_base_branch:
+          type: string
+          nullable: true
+
+    GitOperationError:
+      oneOf:
+        - type: object
+          required: [type, message, op]
+          properties:
+            type:
+              type: string
+              enum: [merge_conflicts]
+            message:
+              type: string
+            op:
+              $ref: '#/components/schemas/ConflictOp'
+        - type: object
+          required: [type]
+          properties:
+            type:
+              type: string
+              enum: [rebase_in_progress]
+
+    GetMcpServerResponse:
+      type: object
+      required: [mcp_config, config_path]
+      properties:
+        mcp_config:
+          type: object
+        config_path:
+          type: string
+
+    UpdateMcpServersBody:
+      type: object
+      required: [servers]
+      properties:
+        servers:
+          type: object
+          additionalProperties: true
+
+    ProfilesContent:
+      type: object
+      required: [content, path]
+      properties:
+        content:
+          type: string
+        path:
+          type: string
+
+    ContainerInfo:
+      type: object
+      required: [attempt_id, task_id, project_id]
+      properties:
+        attempt_id:
+          type: string
+          format: uuid
+        task_id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+
+    ExecutorProfileId:
+      type: object
+      required: [executor]
+      properties:
+        executor:
+          $ref: '#/components/schemas/BaseCodingAgent'
+        variant:
+          type: string
+          nullable: true
+
+    ThemeMode:
+      type: string
+      enum: [LIGHT, DARK, SYSTEM]
+
+    TaskStatus:
+      type: string
+      enum: [todo, inprogress, inreview, done, cancelled]
+
+    ExecutionProcessStatus:
+      type: string
+      enum: [running, completed, failed, killed]
+
+    ExecutionProcessRunReason:
+      type: string
+      enum: [setupscript, cleanupscript, codingagent, devserver]
+
+    BaseCodingAgent:
+      type: string
+      enum: [CLAUDE_CODE, AMP, GEMINI, CODEX, OPENCODE, CURSOR_AGENT, QWEN_CODE, COPILOT]
+
+    BaseAgentCapability:
+      type: string
+      enum: [SESSION_FORK, SETUP_HELPER]
+
+    DevicePollStatus:
+      type: string
+      enum: [SLOW_DOWN, AUTHORIZATION_PENDING, SUCCESS]
+
+    CheckTokenResponse:
+      type: string
+      enum: [VALID, INVALID]
+
+    SearchMatchType:
+      type: string
+      enum: [FileName, DirectoryName, FullPath]
+
+    ConflictOp:
+      type: string
+      enum: [rebase, merge, cherry_pick, revert]
+
+    UiLanguage:
+      type: string
+      enum: [BROWSER, EN, JA, ES, KO]
+
+    NotificationConfig:
+      type: object
+      required: [sound_enabled, push_enabled, sound_file]
+      properties:
+        sound_enabled:
+          type: boolean
+        push_enabled:
+          type: boolean
+        sound_file:
+          type: string
+
+    EditorConfig:
+      type: object
+      required: [editor_type]
+      properties:
+        editor_type:
+          type: string
+          enum: [VS_CODE, CURSOR, WINDSURF, INTELLI_J, ZED, XCODE, CUSTOM]
+        custom_command:
+          type: string
+          nullable: true
+        remote_ssh_host:
+          type: string
+          nullable: true
+        remote_ssh_user:
+          type: string
+          nullable: true
+
+    GitHubConfig:
+      type: object
+      properties:
+        pat:
+          type: string
+          nullable: true
+        oauth_token:
+          type: string
+          nullable: true
+        username:
+          type: string
+          nullable: true
+        primary_email:
+          type: string
+          nullable: true
+        default_pr_base:
+          type: string
+          nullable: true

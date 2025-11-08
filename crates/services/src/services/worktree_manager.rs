@@ -475,6 +475,9 @@ impl WorktreeManager {
 
     /// Get the base directory for anyon worktrees
     pub fn get_worktree_base_dir() -> std::path::PathBuf {
+        if let Ok(custom) = std::env::var("ANYON_WORKTREE_DIR") {
+            return std::path::PathBuf::from(custom);
+        }
         utils::path::get_anyon_temp_dir().join("worktrees")
     }
 }
