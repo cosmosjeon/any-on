@@ -8,9 +8,11 @@ pub struct CloudConfig {
     pub data_dir: PathBuf,
     pub temp_dir: PathBuf,
     pub worktree_dir: PathBuf,
+    pub workspace_dir: PathBuf,
     pub database_file: PathBuf,
     pub log_file: PathBuf,
     pub docker_user: String,
+    pub container_image: String,
 }
 
 impl CloudConfig {
@@ -34,6 +36,9 @@ impl CloudConfig {
         let worktree_dir = env::var_os("ANYON_WORKTREE_DIR")
             .map(PathBuf::from)
             .unwrap_or_else(|| base_dir.join("worktrees"));
+        let workspace_dir = env::var_os("ANYON_WORKSPACE_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| base_dir.join("workspace"));
         let database_file = env::var_os("ANYON_DATABASE_FILE")
             .map(PathBuf::from)
             .unwrap_or_else(|| data_dir.join("anyon.db"));
@@ -43,15 +48,20 @@ impl CloudConfig {
         let docker_user = env::var("ANYON_DOCKER_USER")
             .or_else(|_| env::var("USER"))
             .unwrap_or_else(|_| "ubuntu".to_string());
+        let container_image = env::var("ANYON_CLOUD_CONTAINER_IMAGE")
+            .or_else(|_| env::var("ANYON_CONTAINER_IMAGE"))
+            .unwrap_or_else(|_| "anyon-claude:latest".to_string());
 
         Self {
             base_dir,
             data_dir,
             temp_dir,
             worktree_dir,
+            workspace_dir,
             database_file,
             log_file,
             docker_user,
+            container_image,
         }
     }
 
@@ -64,6 +74,12 @@ impl CloudConfig {
             format!(
                 "Failed to create worktree dir: {}",
                 self.worktree_dir.display()
+            )
+        })?;
+        fs::create_dir_all(&self.workspace_dir).with_context(|| {
+            format!(
+                "Failed to create workspace dir: {}",
+                self.workspace_dir.display()
             )
         })?;
         if let Some(parent) = self.log_file.parent() {
@@ -80,10 +96,12 @@ impl CloudConfig {
             env::set_var("ANYON_ASSET_DIR", &self.data_dir);
             env::set_var("ANYON_TEMP_DIR", &self.temp_dir);
             env::set_var("ANYON_WORKTREE_DIR", &self.worktree_dir);
+            env::set_var("ANYON_WORKSPACE_DIR", &self.workspace_dir);
             env::set_var("ANYON_LOG_FILE", &self.log_file);
             env::set_var("ANYON_DOCKER_USER", &self.docker_user);
             env::set_var("ANYON_CLOUD_BASE_DIR", &self.base_dir);
             env::set_var("ANYON_DATABASE_FILE", &self.database_file);
+            env::set_var("ANYON_CLOUD_CONTAINER_IMAGE", &self.container_image);
             if env::var_os("DATABASE_URL").is_none() {
                 env::set_var(
                     "DATABASE_URL",
@@ -95,5 +113,13 @@ impl CloudConfig {
             }
         }
         Ok(())
+    }
+
+    pub fn workspace_dir(&self) -> &PathBuf {
+        &self.workspace_dir
+    }
+
+    pub fn container_image(&self) -> &str {
+        &self.container_image
     }
 }

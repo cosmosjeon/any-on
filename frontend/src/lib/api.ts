@@ -55,6 +55,15 @@ import {
 
 // Re-export types for convenience
 export type { RepositoryInfo } from 'shared/types';
+export interface CreateProjectFromGitHubRequest {
+  repository_id: number;
+  name: string;
+  clone_url: string;
+  setup_script?: string | null;
+  dev_script?: string | null;
+  cleanup_script?: string | null;
+}
+
 export type {
   UpdateFollowUpDraftRequest,
   UpdateRetryFollowUpDraftRequest,
@@ -219,6 +228,16 @@ export const projectsApi = {
 
   create: async (data: CreateProject): Promise<Project> => {
     const response = await makeRequest('/api/projects', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return handleApiResponse<Project>(response);
+  },
+
+  createFromGitHub: async (
+    data: CreateProjectFromGitHubRequest
+  ): Promise<Project> => {
+    const response = await makeRequest('/api/projects/from-github', {
       method: 'POST',
       body: JSON.stringify(data),
     });

@@ -1,6 +1,8 @@
 pub mod analytics;
 pub mod approvals;
 pub mod auth;
+#[cfg(feature = "cloud")]
+pub mod cloud_container;
 pub mod config;
 pub mod container;
 pub mod diff_stream;

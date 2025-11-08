@@ -8,10 +8,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { ProjectFormFields } from '@/components/projects/project-form-fields';
-import { CreateProject } from 'shared/types';
+import { CreateProject, RepositoryInfo } from 'shared/types';
 import { generateProjectNameFromPath } from '@/utils/string';
 import NiceModal, { useModal } from '@ebay/nice-modal-react';
 import { useProjectMutations } from '@/hooks/useProjectMutations';
+import { useUserSystem } from '@/components/config-provider';
 
 export interface ProjectFormDialogProps {
   // No props needed - this is only for creating projects now
@@ -22,6 +23,12 @@ export type ProjectFormDialogResult = 'saved' | 'canceled';
 export const ProjectFormDialog = NiceModal.create<ProjectFormDialogProps>(
   () => {
     const modal = useModal();
+    const { config, githubTokenInvalid } = useUserSystem();
+    const githubConnected = !!(
+      config?.github?.username &&
+      config?.github?.oauth_token &&
+      !githubTokenInvalid
+    );
     const [name, setName] = useState('');
     const [gitRepoPath, setGitRepoPath] = useState('');
     const [error, setError] = useState('');
@@ -29,7 +36,7 @@ export const ProjectFormDialog = NiceModal.create<ProjectFormDialogProps>(
     const [parentPath, setParentPath] = useState('');
     const [folderName, setFolderName] = useState('');
 
-    const { createProject } = useProjectMutations({
+    const { createProject, createProjectFromGithub } = useProjectMutations({
       onCreateSuccess: () => {
         modal.resolve('saved' as ProjectFormDialogResult);
         modal.hide();
@@ -64,6 +71,26 @@ export const ProjectFormDialog = NiceModal.create<ProjectFormDialogProps>(
       };
 
       createProject.mutate(createData);
+    };
+
+    const handleGithubImport = (repo: RepositoryInfo) => {
+      if (!githubConnected) {
+        NiceModal.show('github-login');
+        return;
+      }
+      setError('');
+      createProjectFromGithub.mutate({
+        repository_id: Number(repo.id),
+        name: repo.name || repo.full_name,
+        clone_url: repo.clone_url,
+        setup_script: null,
+        dev_script: null,
+        cleanup_script: null,
+      });
+    };
+
+    const handleConnectGithub = () => {
+      NiceModal.show('github-login');
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -147,6 +174,10 @@ export const ProjectFormDialog = NiceModal.create<ProjectFormDialogProps>(
                 setError={setError}
                 projectId={undefined}
                 onCreateProject={handleDirectCreate}
+                githubAvailable={githubConnected}
+                onConnectGithub={handleConnectGithub}
+                onImportFromGithub={handleGithubImport}
+                importingFromGithub={createProjectFromGithub.isPending}
               />
               {repoMode === 'new' && (
                 <Button
