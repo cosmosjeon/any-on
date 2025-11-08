@@ -44,7 +44,8 @@ interface ProjectFormFieldsProps {
   setError: (error: string) => void;
   projectId?: string;
   onCreateProject?: (path: string, name: string) => void;
-  githubAvailable: boolean;
+  githubFeatureEnabled: boolean;
+  githubConnected: boolean;
   onConnectGithub?: () => void;
   onImportFromGithub?: (repo: RepositoryInfo) => void;
   importingFromGithub?: boolean;
@@ -73,7 +74,8 @@ export function ProjectFormFields({
   setError,
   projectId,
   onCreateProject,
-  githubAvailable,
+  githubFeatureEnabled,
+  githubConnected,
   onConnectGithub,
   onImportFromGithub,
   importingFromGithub = false,
@@ -122,7 +124,7 @@ const loadRecentRepos = async () => {
 
   const fetchGithubRepos = useCallback(
     async (page: number) => {
-      if (!githubAvailable) return;
+      if (!githubConnected) return;
       setGithubLoading(true);
       setGithubError('');
 
@@ -139,20 +141,26 @@ const loadRecentRepos = async () => {
         setGithubLoading(false);
       }
     },
-    [githubAvailable]
+    [githubConnected]
   );
 
   useEffect(() => {
     if (isEditing || selectionView !== 'github') {
       return;
     }
-    if (!githubAvailable) {
+    if (!githubConnected) {
       setGithubError('Connect your GitHub account to view repositories.');
       setGithubRepos([]);
       return;
     }
     fetchGithubRepos(githubPage);
-  }, [isEditing, selectionView, githubPage, githubAvailable, fetchGithubRepos]);
+  }, [
+    isEditing,
+    selectionView,
+    githubPage,
+    githubConnected,
+    fetchGithubRepos,
+  ]);
 
   return (
     <>
@@ -205,51 +213,52 @@ const loadRecentRepos = async () => {
                   </div>
                 </div>
 
-                {/* Import from GitHub card */}
-                <div
-                  className={`p-4 border rounded-lg bg-card transition-shadow ${
-                    githubAvailable
-                      ? 'cursor-pointer hover:shadow-md'
-                      : 'opacity-75'
-                  }`}
-                  onClick={() => {
-                    if (!githubAvailable) {
-                      onConnectGithub?.();
-                      return;
-                    }
-                    setGithubPage(1);
-                    setSelectionView('github');
-                    setError('');
-                  }}
-                >
-                  <div className="flex items-start gap-3">
-                    <Github className="h-5 w-5 mt-0.5 flex-shrink-0 text-muted-foreground" />
-                    <div className="min-w-0 flex-1">
-                      <div className="font-medium text-foreground">
-                        Import from GitHub
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Browse repositories in your GitHub account and clone
-                        them into Anyon
-                      </div>
-                      {!githubAvailable && (
-                        <div className="mt-3">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onConnectGithub?.();
-                            }}
-                          >
-                            Connect GitHub
-                          </Button>
+                {githubFeatureEnabled && (
+                  <div
+                    className={`p-4 border rounded-lg bg-card transition-shadow ${
+                      githubConnected
+                        ? 'cursor-pointer hover:shadow-md'
+                        : 'opacity-75'
+                    }`}
+                    onClick={() => {
+                      if (!githubConnected) {
+                        onConnectGithub?.();
+                        return;
+                      }
+                      setGithubPage(1);
+                      setSelectionView('github');
+                      setError('');
+                    }}
+                  >
+                    <div className="flex items-start gap-3">
+                      <Github className="h-5 w-5 mt-0.5 flex-shrink-0 text-muted-foreground" />
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium text-foreground">
+                          Import from GitHub
                         </div>
-                      )}
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Browse repositories in your GitHub account and clone
+                          them into Anyon
+                        </div>
+                        {!githubConnected && (
+                          <div className="mt-3">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onConnectGithub?.();
+                              }}
+                            >
+                              Connect GitHub
+                            </Button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </>
             )}
 
@@ -389,7 +398,7 @@ const loadRecentRepos = async () => {
                   Back to options
                 </button>
 
-                {!githubAvailable ? (
+                {!githubConnected ? (
                   <div className="p-4 border rounded-lg bg-card">
                     <p className="text-sm text-muted-foreground mb-3">
                       Connect your GitHub account to list repositories.

@@ -84,7 +84,7 @@ CMD ["/bin/bash"]
 DOCKER
 fi
 
-docker build -t anyon-claude:latest .
+sudo docker build -t anyon-claude:latest .
 
 export DATABASE_URL="sqlite://$ANYON_DATABASE_FILE"
 export BACKEND_PORT=3000

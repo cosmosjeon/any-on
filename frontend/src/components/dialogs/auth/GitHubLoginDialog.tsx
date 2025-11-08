@@ -19,7 +19,13 @@ import NiceModal, { useModal } from '@ebay/nice-modal-react';
 
 const GitHubLoginDialog = NiceModal.create(() => {
   const modal = useModal();
-  const { config, loading, githubTokenInvalid, reloadSystem } = useUserSystem();
+  const {
+    config,
+    loading,
+    githubTokenInvalid,
+    githubSecretState,
+    reloadSystem,
+  } = useUserSystem();
   const [fetching, setFetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deviceState, setDeviceState] =
@@ -28,8 +34,11 @@ const GitHubLoginDialog = NiceModal.create(() => {
   const [copied, setCopied] = useState(false);
 
   const isAuthenticated =
-    !!(config?.github?.username && config?.github?.oauth_token) &&
-    !githubTokenInvalid;
+    !!(
+      config?.github?.username &&
+      githubSecretState?.has_oauth_token &&
+      !githubTokenInvalid
+    );
 
   const handleLogin = async () => {
     setFetching(true);

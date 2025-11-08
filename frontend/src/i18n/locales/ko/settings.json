@@ -81,12 +81,15 @@
         "manage": "관리",
         "disconnect": "연결 해제",
         "helper": "GitHub 계정을 연결하여 비공개 저장소에 액세스하고 고급 Git 작업을 활성화하세요.",
+        "cloudOnly": "GitHub integration is available only on cloud deployments.",
         "or": "또는",
         "pat": {
           "label": "개인 액세스 토큰",
           "placeholder": "ghp_xxxxxxxxxxxxxxxxxxxx",
           "helper": "'repo' 권한이 있는 GitHub 개인 액세스 토큰입니다. OAuth 권한이 비공개 저장소 및 조직 소유 저장소에 충분하지 않은 경우 사용하세요.",
-          "createTokenLink": "여기에서 토큰 생성"
+          "createTokenLink": "여기에서 토큰 생성",
+          "saved": "Personal access token stored securely.",
+          "remove": "Remove token"
         }
       },
       "git": {

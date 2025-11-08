@@ -23,11 +23,13 @@ export type ProjectFormDialogResult = 'saved' | 'canceled';
 export const ProjectFormDialog = NiceModal.create<ProjectFormDialogProps>(
   () => {
     const modal = useModal();
-    const { config, githubTokenInvalid } = useUserSystem();
+    const { config, githubTokenInvalid, githubSecretState, isCloud } =
+      useUserSystem();
     const githubConnected = !!(
-      config?.github?.username &&
-      config?.github?.oauth_token &&
-      !githubTokenInvalid
+      isCloud &&
+        config?.github?.username &&
+        githubSecretState?.has_oauth_token &&
+        !githubTokenInvalid
     );
     const [name, setName] = useState('');
     const [gitRepoPath, setGitRepoPath] = useState('');
@@ -174,7 +176,8 @@ export const ProjectFormDialog = NiceModal.create<ProjectFormDialogProps>(
                 setError={setError}
                 projectId={undefined}
                 onCreateProject={handleDirectCreate}
-                githubAvailable={githubConnected}
+                githubFeatureEnabled={isCloud}
+                githubConnected={githubConnected}
                 onConnectGithub={handleConnectGithub}
                 onImportFromGithub={handleGithubImport}
                 importingFromGithub={createProjectFromGithub.isPending}

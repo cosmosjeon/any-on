@@ -16,7 +16,10 @@ use executors::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use services::services::config::{Config, ConfigError, SoundFile, save_config_to_file};
+use services::services::{
+    config::{Config, ConfigError, SoundFile, save_config_to_file},
+    secret_store::{SECRET_CLAUDE_ACCESS, SECRET_GITHUB_OAUTH, SECRET_GITHUB_PAT, SecretStoreError},
+};
 use tokio::fs;
 use ts_rs::TS;
 use utils::{assets::config_path, response::ApiResponse};
@@ -38,6 +41,17 @@ pub struct Environment {
     pub os_version: String,
     pub os_architecture: String,
     pub bitness: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
+pub struct GitHubSecretState {
+    pub has_oauth_token: bool,
+    pub has_pat: bool,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
+pub struct ClaudeSecretState {
+    pub has_credentials: bool,
 }
 
 impl Default for Environment {
@@ -65,6 +79,9 @@ pub struct UserSystemInfo {
     #[serde(flatten)]
     pub profiles: ExecutorConfigs,
     pub environment: Environment,
+    pub github_secret_state: GitHubSecretState,
+    pub claude_secret_state: ClaudeSecretState,
+    pub is_cloud: bool,
     /// Capabilities supported per executor (e.g., { "CLAUDE_CODE": ["SESSION_FORK"] })
     pub capabilities: HashMap<String, Vec<BaseAgentCapability>>,
 }
@@ -74,13 +91,33 @@ pub struct UserSystemInfo {
 async fn get_user_system_info(
     State(deployment): State<DeploymentImpl>,
 ) -> ResponseJson<ApiResponse<UserSystemInfo>> {
-    let config = deployment.config().read().await;
+    let mut config = deployment.config().read().await.clone();
+    config.github.pat = None;
+    config.github.oauth_token = None;
+
+    let github_secret_state = match load_github_secret_state(&deployment).await {
+        Ok(state) => state,
+        Err(err) => {
+            tracing::error!("Failed to load GitHub secret state: {err}");
+            GitHubSecretState::default()
+        }
+    };
+    let claude_secret_state = match load_claude_secret_state(&deployment).await {
+        Ok(state) => state,
+        Err(err) => {
+            tracing::error!("Failed to load Claude secret state: {err}");
+            ClaudeSecretState::default()
+        }
+    };
 
     let user_system_info = UserSystemInfo {
-        config: config.clone(),
+        config,
         analytics_user_id: deployment.user_id().to_string(),
         profiles: ExecutorConfigs::get_cached(),
         environment: Environment::new(),
+        github_secret_state,
+        claude_secret_state,
+        is_cloud: cfg!(feature = "cloud"),
         capabilities: {
             let mut caps: HashMap<String, Vec<BaseAgentCapability>> = HashMap::new();
             let profs = ExecutorConfigs::get_cached();
@@ -98,7 +135,7 @@ async fn get_user_system_info(
 
 async fn update_config(
     State(deployment): State<DeploymentImpl>,
-    Json(new_config): Json<Config>,
+    Json(mut new_config): Json<Config>,
 ) -> ResponseJson<ApiResponse<Config>> {
     let config_path = config_path();
 
@@ -111,6 +148,13 @@ async fn update_config(
 
     // Get old config state before updating
     let old_config = deployment.config().read().await.clone();
+
+    if let Err(err) = persist_github_secrets(&deployment, &mut new_config).await {
+        tracing::error!("Failed to persist GitHub secrets: {err}");
+        return ResponseJson(ApiResponse::error(
+            "Failed to update GitHub authentication. Please try again.",
+        ));
+    }
 
     match save_config_to_file(&new_config, &config_path).await {
         Ok(_) => {
@@ -149,9 +193,7 @@ async fn track_config_events(deployment: &DeploymentImpl, old: &Config, new: &Co
             serde_json::json!({
                 "username": new.github.username,
                 "email": new.github.primary_email,
-                "auth_method": if new.github.oauth_token.is_some() { "oauth" }
-                              else if new.github.pat.is_some() { "pat" }
-                              else { "none" },
+                "auth_method": "oauth",
                 "has_default_pr_base": new.github.default_pr_base.is_some(),
                 "skipped": new.github.username.is_none()
             }),
@@ -187,6 +229,70 @@ async fn handle_config_events(deployment: &DeploymentImpl, old: &Config, new: &C
             deployment_clone.trigger_auto_project_setup().await;
         });
     }
+}
+
+async fn load_github_secret_state(
+    deployment: &DeploymentImpl,
+) -> Result<GitHubSecretState, SecretStoreError> {
+    let user_id = deployment.user_id();
+    let secret_store = deployment.secret_store();
+    let has_pat = secret_store
+        .get_secret(user_id, SECRET_GITHUB_PAT)
+        .await?
+        .is_some();
+    let has_oauth_token = secret_store
+        .get_secret(user_id, SECRET_GITHUB_OAUTH)
+        .await?
+        .is_some();
+    Ok(GitHubSecretState {
+        has_oauth_token,
+        has_pat,
+    })
+}
+
+async fn load_claude_secret_state(
+    deployment: &DeploymentImpl,
+) -> Result<ClaudeSecretState, SecretStoreError> {
+    let has_credentials = deployment
+        .secret_store()
+        .get_secret(deployment.user_id(), SECRET_CLAUDE_ACCESS)
+        .await?
+        .is_some();
+    Ok(ClaudeSecretState { has_credentials })
+}
+
+async fn persist_github_secrets(
+    deployment: &DeploymentImpl,
+    config: &mut Config,
+) -> Result<(), SecretStoreError> {
+    let user_id = deployment.user_id().to_string();
+    let secret_store = deployment.secret_store().clone();
+
+    if let Some(pat_value) = config.github.pat.take() {
+        if pat_value.trim().is_empty() {
+            secret_store
+                .delete_secret(&user_id, SECRET_GITHUB_PAT)
+                .await?;
+        } else {
+            secret_store
+                .put_secret(&user_id, SECRET_GITHUB_PAT, pat_value.as_bytes())
+                .await?;
+        }
+    }
+
+    if let Some(oauth_value) = config.github.oauth_token.take() {
+        if oauth_value.trim().is_empty() {
+            secret_store
+                .delete_secret(&user_id, SECRET_GITHUB_OAUTH)
+                .await?;
+        } else {
+            secret_store
+                .put_secret(&user_id, SECRET_GITHUB_OAUTH, oauth_value.as_bytes())
+                .await?;
+        }
+    }
+
+    Ok(())
 }
 
 async fn get_sound(Path(sound): Path<SoundFile>) -> Result<Response, ApiError> {

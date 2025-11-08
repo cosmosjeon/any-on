@@ -12,6 +12,8 @@ import {
   type Environment,
   type UserSystemInfo,
   type BaseAgentCapability,
+  type GitHubSecretState,
+  type ClaudeSecretState,
   CheckTokenResponse,
 } from 'shared/types';
 import type { ExecutorConfig } from 'shared/types';
@@ -24,6 +26,9 @@ interface UserSystemState {
   profiles: Record<string, ExecutorConfig> | null;
   capabilities: Record<string, BaseAgentCapability[]> | null;
   analyticsUserId: string | null;
+  githubSecretState: GitHubSecretState | null;
+  claudeSecretState: ClaudeSecretState | null;
+  isCloud: boolean;
 }
 
 interface UserSystemContextType {
@@ -41,6 +46,9 @@ interface UserSystemContextType {
   profiles: Record<string, ExecutorConfig> | null;
   capabilities: Record<string, BaseAgentCapability[]> | null;
   analyticsUserId: string | null;
+  githubSecretState: GitHubSecretState | null;
+  claudeSecretState: ClaudeSecretState | null;
+  isCloud: boolean;
   setEnvironment: (env: Environment | null) => void;
   setProfiles: (profiles: Record<string, ExecutorConfig> | null) => void;
   setCapabilities: (caps: Record<string, BaseAgentCapability[]> | null) => void;
@@ -74,6 +82,11 @@ export function UserSystemProvider({ children }: UserSystemProviderProps) {
     BaseAgentCapability[]
   > | null>(null);
   const [analyticsUserId, setAnalyticsUserId] = useState<string | null>(null);
+  const [githubSecretState, setGithubSecretState] =
+    useState<GitHubSecretState | null>(null);
+  const [claudeSecretState, setClaudeSecretState] =
+    useState<ClaudeSecretState | null>(null);
+  const [isCloud, setIsCloud] = useState(false);
   const [loading, setLoading] = useState(true);
   const [githubTokenInvalid, setGithubTokenInvalid] = useState(false);
 
@@ -93,6 +106,9 @@ export function UserSystemProvider({ children }: UserSystemProviderProps) {
             BaseAgentCapability[]
           > | null
         );
+        setGithubSecretState(userSystemInfo.github_secret_state);
+        setClaudeSecretState(userSystemInfo.claude_secret_state);
+        setIsCloud(!!userSystemInfo.is_cloud);
       } catch (err) {
         console.error('Error loading user system:', err);
       } finally {
@@ -182,6 +198,9 @@ export function UserSystemProvider({ children }: UserSystemProviderProps) {
           BaseAgentCapability[]
         > | null
       );
+      setGithubSecretState(userSystemInfo.github_secret_state);
+      setClaudeSecretState(userSystemInfo.claude_secret_state);
+      setIsCloud(!!userSystemInfo.is_cloud);
     } catch (err) {
       console.error('Error reloading user system:', err);
     }
@@ -190,12 +209,24 @@ export function UserSystemProvider({ children }: UserSystemProviderProps) {
   // Memoize context value to prevent unnecessary re-renders
   const value = useMemo<UserSystemContextType>(
     () => ({
-      system: { config, environment, profiles, capabilities, analyticsUserId },
+      system: {
+        config,
+        environment,
+        profiles,
+        capabilities,
+        analyticsUserId,
+        githubSecretState,
+        claudeSecretState,
+        isCloud,
+      },
       config,
       environment,
       profiles,
       capabilities,
       analyticsUserId,
+      githubSecretState,
+      claudeSecretState,
+      isCloud,
       updateConfig,
       saveConfig,
       updateAndSaveConfig,
@@ -212,6 +243,9 @@ export function UserSystemProvider({ children }: UserSystemProviderProps) {
       profiles,
       capabilities,
       analyticsUserId,
+      githubSecretState,
+      claudeSecretState,
+      isCloud,
       updateConfig,
       saveConfig,
       updateAndSaveConfig,

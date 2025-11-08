@@ -6,6 +6,7 @@ export { ReleaseNotesDialog } from './global/ReleaseNotesDialog';
 
 // Authentication dialogs
 export { GitHubLoginDialog } from './auth/GitHubLoginDialog';
+export { ClaudeLoginDialog } from './auth/ClaudeLoginDialog';
 export {
   ProvidePatDialog,
   type ProvidePatDialogProps,

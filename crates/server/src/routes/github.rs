@@ -46,16 +46,17 @@ pub async fn list_repositories(
 ) -> Result<ResponseJson<ApiResponse<Vec<RepositoryInfo>>>, StatusCode> {
     let page = params.page.unwrap_or(1);
 
-    // Get GitHub configuration
-    let github_config = {
-        let config = deployment.config().read().await;
-        config.github.clone()
-    };
-
-    let Some(github_token) = github_config.token() else {
-        return Ok(ResponseJson(ApiResponse::error(
-            "GitHub token not configured. Please authenticate with GitHub first.",
-        )));
+    let github_token = match deployment.github_token().await {
+        Ok(Some(token)) => token,
+        Ok(None) => {
+            return Ok(ResponseJson(ApiResponse::error(
+                "GitHub token not configured. Please authenticate with GitHub first.",
+            )));
+        }
+        Err(err) => {
+            tracing::error!("Failed to load GitHub token: {err}");
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
     };
 
     // Create GitHub service with token
@@ -134,9 +135,13 @@ pub async fn create_project_from_github(
     }
 
     // Get GitHub token
-    let github_token = {
-        let config = deployment.config().read().await;
-        config.github.token()
+    let github_token = match deployment.github_token().await {
+        Ok(Some(token)) => Some(token),
+        Ok(None) => None,
+        Err(err) => {
+            tracing::error!("Failed to load GitHub token: {err}");
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
     };
 
     // Clone the repository

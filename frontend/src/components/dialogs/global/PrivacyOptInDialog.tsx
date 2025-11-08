@@ -13,11 +13,11 @@ import NiceModal, { useModal } from '@ebay/nice-modal-react';
 
 const PrivacyOptInDialog = NiceModal.create(() => {
   const modal = useModal();
-  const { config } = useUserSystem();
+  const { config, githubSecretState } = useUserSystem();
 
   // Check if user is authenticated with GitHub
   const isGitHubAuthenticated =
-    config?.github?.username && config?.github?.oauth_token;
+    !!(config?.github?.username && githubSecretState?.has_oauth_token);
 
   const handleOptIn = () => {
     modal.resolve(true);

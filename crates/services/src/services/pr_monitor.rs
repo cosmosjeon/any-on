@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 
 use db::{
     DBService,
@@ -11,13 +11,13 @@ use db::{
 use serde_json::json;
 use sqlx::error::Error as SqlxError;
 use thiserror::Error;
-use tokio::{sync::RwLock, time::interval};
+use tokio::time::interval;
 use tracing::{debug, error, info, warn};
 
 use crate::services::{
     analytics::AnalyticsContext,
-    config::Config,
     github_service::{GitHubRepoInfo, GitHubService, GitHubServiceError},
+    secret_store::{SECRET_GITHUB_OAUTH, SECRET_GITHUB_PAT, SecretStore, SecretStoreError},
 };
 
 #[derive(Debug, Error)]
@@ -30,27 +30,32 @@ enum PrMonitorError {
     TaskAttemptError(#[from] TaskAttemptError),
     #[error(transparent)]
     Sqlx(#[from] SqlxError),
+    #[error(transparent)]
+    SecretStore(#[from] SecretStoreError),
 }
 
 /// Service to monitor GitHub PRs and update task status when they are merged
 pub struct PrMonitorService {
     db: DBService,
-    config: Arc<RwLock<Config>>,
     poll_interval: Duration,
     analytics: Option<AnalyticsContext>,
+    secret_store: SecretStore,
+    user_id: String,
 }
 
 impl PrMonitorService {
     pub async fn spawn(
         db: DBService,
-        config: Arc<RwLock<Config>>,
         analytics: Option<AnalyticsContext>,
+        secret_store: SecretStore,
+        user_id: String,
     ) -> tokio::task::JoinHandle<()> {
         let service = Self {
             db,
-            config,
             poll_interval: Duration::from_secs(60), // Check every minute
             analytics,
+            secret_store,
+            user_id,
         };
         tokio::spawn(async move {
             service.start().await;
@@ -103,8 +108,7 @@ impl PrMonitorService {
 
     /// Check the status of a specific PR
     async fn check_pr_status(&self, pr_merge: &PrMerge) -> Result<(), PrMonitorError> {
-        let github_config = self.config.read().await.github.clone();
-        let github_token = github_config.token().ok_or(PrMonitorError::NoGitHubToken)?;
+        let github_token = self.fetch_github_token().await?;
 
         let github_service = GitHubService::new(&github_token)?;
 
@@ -160,5 +164,23 @@ impl PrMonitorService {
         }
 
         Ok(())
+    }
+
+    async fn fetch_github_token(&self) -> Result<String, PrMonitorError> {
+        if let Some(pat) = self
+            .secret_store
+            .get_secret_string(&self.user_id, SECRET_GITHUB_PAT)
+            .await?
+        {
+            return Ok(pat);
+        }
+        if let Some(token) = self
+            .secret_store
+            .get_secret_string(&self.user_id, SECRET_GITHUB_OAUTH)
+            .await?
+        {
+            return Ok(token);
+        }
+        Err(PrMonitorError::NoGitHubToken)
     }
 }

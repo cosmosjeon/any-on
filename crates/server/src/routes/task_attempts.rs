@@ -21,7 +21,7 @@ use db::models::{
     task::{Task, TaskRelationships, TaskStatus},
     task_attempt::{CreateTaskAttempt, TaskAttempt, TaskAttemptError},
 };
-use deployment::Deployment;
+use deployment::{Deployment, DeploymentError};
 use executors::{
     actions::{
         ExecutorAction, ExecutorActionType,
@@ -110,6 +110,17 @@ pub struct TaskAttemptQuery {
 pub struct DiffStreamQuery {
     #[serde(default)]
     pub stats_only: bool,
+}
+
+async fn resolve_github_token(deployment: &DeploymentImpl) -> Result<String, ApiError> {
+    match deployment.github_token().await {
+        Ok(Some(token)) => Ok(token),
+        Ok(None) => Err(GitHubServiceError::TokenInvalid.into()),
+        Err(err) => {
+            tracing::error!("Failed to load GitHub token: {err}");
+            Err(ApiError::Deployment(DeploymentError::from(err)))
+        }
+    }
 }
 
 pub async fn get_task_attempts(
@@ -708,10 +719,7 @@ pub async fn push_task_attempt_branch(
     Extension(task_attempt): Extension<TaskAttempt>,
     State(deployment): State<DeploymentImpl>,
 ) -> Result<ResponseJson<ApiResponse<()>>, ApiError> {
-    let github_config = deployment.config().read().await.github.clone();
-    let Some(github_token) = github_config.token() else {
-        return Err(GitHubServiceError::TokenInvalid.into());
-    };
+    let github_token = resolve_github_token(&deployment).await?;
 
     let github_service = GitHubService::new(&github_token)?;
     github_service.check_token().await?;
@@ -730,10 +738,19 @@ pub async fn create_github_pr(
     Json(request): Json<CreateGitHubPrRequest>,
 ) -> Result<ResponseJson<ApiResponse<String, GitHubServiceError>>, ApiError> {
     let github_config = deployment.config().read().await.github.clone();
-    let Some(github_token) = github_config.token() else {
-        return Ok(ResponseJson(ApiResponse::error_with_data(
-            GitHubServiceError::TokenInvalid,
-        )));
+    let github_token = match deployment.github_token().await {
+        Ok(Some(token)) => token,
+        Ok(None) => {
+            return Ok(ResponseJson(ApiResponse::error_with_data(
+                GitHubServiceError::TokenInvalid,
+            )));
+        }
+        Err(err) => {
+            tracing::error!("Failed to load GitHub token: {err}");
+            return Ok(ResponseJson(ApiResponse::error_with_data(
+                GitHubServiceError::TokenInvalid,
+            )));
+        }
     };
     // Create GitHub service instance
     let github_service = GitHubService::new(&github_token)?;
@@ -1010,10 +1027,7 @@ pub async fn get_task_attempt_branch_status(
             (Some(a), Some(b))
         }
         BranchType::Remote => {
-            let github_config = deployment.config().read().await.github.clone();
-            let token = github_config
-                .token()
-                .ok_or(ApiError::GitHubService(GitHubServiceError::TokenInvalid))?;
+            let token = resolve_github_token(&deployment).await?;
             let (remote_commits_ahead, remote_commits_behind) =
                 deployment.git().get_remote_branch_status(
                     &ctx.project.git_repo_path,
@@ -1035,10 +1049,7 @@ pub async fn get_task_attempt_branch_status(
     })) = merges.first()
     {
         // check remote status if the attempt has an open PR
-        let github_config = deployment.config().read().await.github.clone();
-        let token = github_config
-            .token()
-            .ok_or(ApiError::GitHubService(GitHubServiceError::TokenInvalid))?;
+        let token = resolve_github_token(&deployment).await?;
         let (remote_commits_ahead, remote_commits_behind) =
             deployment.git().get_remote_branch_status(
                 &ctx.project.git_repo_path,
@@ -1263,7 +1274,10 @@ pub async fn rebase_task_attempt(
     let new_base_branch = payload
         .new_base_branch
         .unwrap_or(task_attempt.target_branch.clone());
-    let github_config = deployment.config().read().await.github.clone();
+    let github_token = match deployment.github_token().await {
+        Ok(token) => token,
+        Err(err) => return Err(ApiError::Deployment(DeploymentError::from(err))),
+    };
 
     let pool = &deployment.db().pool;
 
@@ -1304,7 +1318,7 @@ pub async fn rebase_task_attempt(
         &new_base_branch,
         &old_base_branch,
         &task_attempt.branch.clone(),
-        github_config.token(),
+        github_token,
     );
     if let Err(e) = result {
         use services::services::git::GitServiceError;
@@ -1554,11 +1568,7 @@ pub async fn attach_existing_pr(
         })));
     }
 
-    // Get GitHub token
-    let github_config = deployment.config().read().await.github.clone();
-    let Some(github_token) = github_config.token() else {
-        return Err(ApiError::GitHubService(GitHubServiceError::TokenInvalid));
-    };
+    let github_token = resolve_github_token(&deployment).await?;
 
     // Get project and repo info
     let Some(task) = task_attempt.parent_task(pool).await? else {

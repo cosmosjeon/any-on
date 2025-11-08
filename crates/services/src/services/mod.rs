@@ -1,6 +1,7 @@
 pub mod analytics;
 pub mod approvals;
 pub mod auth;
+pub mod claude_auth;
 #[cfg(feature = "cloud")]
 pub mod cloud_container;
 pub mod config;
@@ -19,4 +20,5 @@ pub mod github_service;
 pub mod image;
 pub mod notification;
 pub mod pr_monitor;
+pub mod secret_store;
 pub mod worktree_manager;
