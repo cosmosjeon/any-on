@@ -26,7 +26,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ChevronDown, Key, Loader2, Volume2 } from 'lucide-react';
+import { ChevronDown, Key, Loader2, Sparkles, Volume2 } from 'lucide-react';
 import {
   BaseCodingAgent,
   EditorType,
@@ -42,6 +42,7 @@ import { useTheme } from '@/components/theme-provider';
 import { useUserSystem } from '@/components/config-provider';
 import { TagManager } from '@/components/TagManager';
 import NiceModal from '@ebay/nice-modal-react';
+import { claudeAuthApi } from '@/lib/api';
 
 export function GeneralSettings() {
   const { t } = useTranslation(['settings', 'common']);
@@ -59,7 +60,9 @@ export function GeneralSettings() {
     updateAndSaveConfig, // Use this on Save
     profiles,
     githubSecretState,
+    claudeSecretState,
     isCloud,
+    reloadSystem,
   } = useUserSystem();
 
   // Draft state management
@@ -72,6 +75,10 @@ export function GeneralSettings() {
     null
   );
   const { setTheme } = useTheme();
+  const [claudeActionLoading, setClaudeActionLoading] = useState(false);
+  const [claudeActionType, setClaudeActionType] = useState<
+    'connect' | 'disconnect' | null
+  >(null);
 
   const validateBranchPrefix = useCallback(
     (prefix: string): string | null => {
@@ -192,6 +199,10 @@ export function GeneralSettings() {
     githubSecretState?.has_oauth_token
   );
   const patConfigured = !!githubSecretState?.has_pat;
+  const claudeFeatureEnabled = isCloud;
+  const claudeConnected = !!(
+    claudeFeatureEnabled && claudeSecretState?.has_credentials
+  );
 
   const handleLogout = useCallback(async () => {
     if (!config) return;
@@ -214,6 +225,41 @@ export function GeneralSettings() {
       },
     });
   }, [config, updateAndSaveConfig]);
+
+  const handleClaudeLogin = useCallback(async () => {
+    if (!claudeFeatureEnabled) return;
+    setClaudeActionType('connect');
+    setClaudeActionLoading(true);
+    setError(null);
+    try {
+      const result = await NiceModal.show('claude-login');
+      if (result) {
+        await reloadSystem();
+      }
+    } catch (err) {
+      console.error('Failed to start Claude login', err);
+      setError(t('settings.general.claude.errors.start'));
+    } finally {
+      setClaudeActionLoading(false);
+      setClaudeActionType(null);
+    }
+  }, [claudeFeatureEnabled, reloadSystem, t]);
+
+  const handleClaudeLogout = useCallback(async () => {
+    if (!claudeFeatureEnabled) return;
+    setClaudeActionType('disconnect');
+    setClaudeActionLoading(true);
+    try {
+      await claudeAuthApi.logout();
+      await reloadSystem();
+    } catch (err) {
+      console.error('Failed to remove Claude credentials', err);
+      setError(t('settings.general.claude.errors.logout'));
+    } finally {
+      setClaudeActionLoading(false);
+      setClaudeActionType(null);
+    }
+  }, [claudeFeatureEnabled, reloadSystem, t]);
 
   if (loading) {
     return (
@@ -669,6 +715,84 @@ export function GeneralSettings() {
                     </Button>
                   </div>
                 )}
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5" />
+            {t('settings.general.claude.title')}
+          </CardTitle>
+          <CardDescription>
+            {t('settings.general.claude.description')}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {!claudeFeatureEnabled ? (
+            <Alert>
+              <AlertDescription>
+                {t('settings.general.claude.cloudOnly')}
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <>
+              <div className="flex flex-col gap-4 rounded-lg border p-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="font-medium">
+                    {claudeConnected
+                      ? t('settings.general.claude.status.connected')
+                      : t('settings.general.claude.status.disconnected')}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {t('settings.general.claude.helper')}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {claudeConnected && (
+                    <Button
+                      variant="outline"
+                      disabled={claudeActionLoading}
+                      onClick={handleClaudeLogout}
+                      className="flex items-center gap-2"
+                    >
+                      {claudeActionLoading && claudeActionType === 'disconnect' && (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      )}
+                      {claudeActionLoading && claudeActionType === 'disconnect'
+                        ? t('settings.general.claude.actions.disconnecting')
+                        : t('settings.general.claude.actions.disconnect')}
+                    </Button>
+                  )}
+                  <Button
+                    disabled={claudeActionLoading}
+                    onClick={handleClaudeLogin}
+                    className="flex items-center gap-2"
+                  >
+                    {claudeActionLoading && claudeActionType === 'connect' && (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    )}
+                    {claudeActionLoading && claudeActionType === 'connect'
+                      ? t('settings.general.claude.actions.connecting')
+                      : claudeConnected
+                        ? t('settings.general.claude.actions.reconnect')
+                        : t('settings.general.claude.actions.connect')}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="rounded-md border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+                <p className="mb-2 font-semibold">
+                  {t('settings.general.claude.steps.title')}
+                </p>
+                <ol className="list-decimal space-y-1 pl-4">
+                  <li>{t('settings.general.claude.steps.pick')}</li>
+                  <li>{t('settings.general.claude.steps.browser')}</li>
+                  <li>{t('settings.general.claude.steps.done')}</li>
+                </ol>
               </div>
             </>
           )}

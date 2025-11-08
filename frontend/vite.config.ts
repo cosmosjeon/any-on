@@ -65,7 +65,9 @@ export default defineConfig({
     port: parseInt(process.env.FRONTEND_PORT || "3000"),
     proxy: {
       "/api": {
-        target: `http://localhost:${process.env.BACKEND_PORT || "3001"}`,
+        target: process.env.BACKEND_HOST 
+          ? `http://${process.env.BACKEND_HOST}:${process.env.BACKEND_PORT || "3000"}`
+          : `http://localhost:${process.env.BACKEND_PORT || "3001"}`,
         changeOrigin: true,
         ws: true,
       },

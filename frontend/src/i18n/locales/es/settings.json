@@ -92,6 +92,33 @@
           "remove": "Remove token"
         }
       },
+      "claude": {
+        "title": "Inicio de sesión de Claude Code",
+        "description": "Vincula Claude Code CLI sin salir del navegador.",
+        "helper": "Anyon transmite las indicaciones de la CLI de Claude, abre automáticamente la página de aprobación de Anthropic y guarda el token emitido en SecretStore para que nunca pegues códigos manualmente.",
+        "cloudOnly": "La autenticación de Claude solo está disponible en despliegues de Anyon Cloud.",
+        "status": {
+          "connected": "Las credenciales de Claude se almacenan de forma segura.",
+          "disconnected": "Aún no hay credenciales de Claude conectadas."
+        },
+        "steps": {
+          "title": "Cómo funciona",
+          "pick": "Usa los botones del modal para elegir ‘Login with browser’ cuando la CLI muestre opciones.",
+          "browser": "Aprueba la solicitud en la pestaña de Claude/Anthropic que se abre automáticamente.",
+          "done": "Anyon cifra las credenciales guardadas de la CLI en SecretStore y cierra la sesión."
+        },
+        "actions": {
+          "connect": "Conectar cuenta de Claude",
+          "reconnect": "Reconectar",
+          "disconnect": "Desconectar",
+          "connecting": "Iniciando sesión…",
+          "disconnecting": "Desconectando…"
+        },
+        "errors": {
+          "start": "No se pudo iniciar la sesión de acceso a Claude. Vuelve a intentarlo.",
+          "logout": "No se pudieron eliminar las credenciales de Claude."
+        }
+      },
       "git": {
         "title": "Git",
         "description": "Configurar preferencias de nombres de ramas git",
