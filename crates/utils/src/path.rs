@@ -102,6 +102,9 @@ fn normalize_macos_private_alias<P: AsRef<Path>>(p: P) -> PathBuf {
 }
 
 pub fn get_anyon_temp_dir() -> std::path::PathBuf {
+    if let Ok(custom) = std::env::var("ANYON_TEMP_DIR") {
+        return std::path::PathBuf::from(custom);
+    }
     let dir_name = if cfg!(debug_assertions) {
         "anyon-dev"
     } else {

@@ -753,6 +753,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "cloud-deployment"
+version = "0.0.116"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "db",
+ "deployment",
+ "dirs 5.0.1",
+ "local-deployment",
+ "services",
+ "tokio",
+ "utils",
+ "uuid",
+]
+
+[[package]]
 name = "codex-app-server-protocol"
 version = "0.44.0"
 source = "git+https://github.com/openai/codex.git?rev=488ec061bf4d36916b8f477c700ea4fde4162a7a#488ec061bf4d36916b8f477c700ea4fde4162a7a"
@@ -4113,6 +4129,7 @@ dependencies = [
  "async-trait",
  "axum",
  "chrono",
+ "cloud-deployment",
  "command-group",
  "db",
  "deployment",

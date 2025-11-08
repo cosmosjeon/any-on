@@ -42,5 +42,14 @@ pub async fn save_config_to_file(
 ) -> Result<(), ConfigError> {
     let raw_config = serde_json::to_string_pretty(config)?;
     std::fs::write(config_path, raw_config)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Ok(meta) = std::fs::metadata(config_path) {
+            let mut perms = meta.permissions();
+            perms.set_mode(0o600);
+            let _ = std::fs::set_permissions(config_path, perms);
+        }
+    }
     Ok(())
 }
