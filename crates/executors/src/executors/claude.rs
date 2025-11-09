@@ -3,14 +3,12 @@ pub mod client;
 pub mod protocol;
 pub mod types;
 
-use std::{collections::HashMap, path::Path, process::Stdio, sync::Arc};
+use std::{collections::HashMap, path::Path, sync::Arc};
 
 use async_trait::async_trait;
-use command_group::AsyncCommandGroup;
 use futures::StreamExt;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use tokio::process::Command;
 use ts_rs::TS;
 use workspace_utils::{
     approvals::ApprovalStatus,
@@ -23,7 +21,10 @@ use workspace_utils::{
 use self::{client::ClaudeAgentClient, protocol::ProtocolPeer, types::PermissionMode};
 use crate::{
     approvals::ExecutorApprovalService,
-    command::{CmdOverrides, CommandBuilder, CommandParts, apply_overrides},
+    command::{
+        CmdOverrides, CommandBuilder, CommandParts, CommandRuntime, ExecutionCommand,
+        StdioConfig, apply_overrides,
+    },
     executors::{
         AppendPrompt, ExecutorError, SpawnedChild, StandardCodingAgentExecutor,
         codex::client::LogWriter,
@@ -154,10 +155,15 @@ impl StandardCodingAgentExecutor for ClaudeCode {
         self.approvals_service = Some(approvals);
     }
 
-    async fn spawn(&self, current_dir: &Path, prompt: &str) -> Result<SpawnedChild, ExecutorError> {
+    async fn spawn(
+        &self,
+        current_dir: &Path,
+        prompt: &str,
+        runtime: &dyn CommandRuntime,
+    ) -> Result<SpawnedChild, ExecutorError> {
         let command_builder = self.build_command_builder().await;
         let command_parts = command_builder.build_initial()?;
-        self.spawn_internal(current_dir, prompt, command_parts)
+        self.spawn_internal(current_dir, prompt, command_parts, runtime)
             .await
     }
 
@@ -166,6 +172,7 @@ impl StandardCodingAgentExecutor for ClaudeCode {
         current_dir: &Path,
         prompt: &str,
         session_id: &str,
+        runtime: &dyn CommandRuntime,
     ) -> Result<SpawnedChild, ExecutorError> {
         let command_builder = self.build_command_builder().await;
         let command_parts = command_builder.build_follow_up(&[
@@ -173,7 +180,7 @@ impl StandardCodingAgentExecutor for ClaudeCode {
             "--resume".to_string(),
             session_id.to_string(),
         ])?;
-        self.spawn_internal(current_dir, prompt, command_parts)
+        self.spawn_internal(current_dir, prompt, command_parts, runtime)
             .await
     }
 
@@ -204,20 +211,18 @@ impl ClaudeCode {
         current_dir: &Path,
         prompt: &str,
         command_parts: CommandParts,
+        runtime: &dyn CommandRuntime,
     ) -> Result<SpawnedChild, ExecutorError> {
-        let (program_path, args) = command_parts.into_resolved().await?;
+        let (program, args) = command_parts.into_owned();
         let combined_prompt = self.append_prompt.combine_prompt(prompt);
 
-        let mut command = Command::new(program_path);
-        command
-            .kill_on_drop(true)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .current_dir(current_dir)
-            .args(&args);
+        let mut exec_command = ExecutionCommand::new(program, args, current_dir.to_path_buf());
+        exec_command.kill_on_drop(true);
+        exec_command.stdin(StdioConfig::piped());
+        exec_command.stdout(StdioConfig::piped());
+        exec_command.stderr(StdioConfig::piped());
 
-        let mut child = command.group_spawn()?;
+        let mut child = runtime.spawn(exec_command).await?;
         let child_stdout = child.inner().stdout.take().ok_or_else(|| {
             ExecutorError::Io(std::io::Error::other("Claude Code missing stdout"))
         })?;

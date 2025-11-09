@@ -5,23 +5,21 @@ icon: https://www.anyon.com/images/logos/claude.svg#"
 ---
 
 <Steps>
-<Step title="Run Claude Code">
-  ```bash
-  npx -y @anthropic-ai/claude-code
-  ```
+<Step title="Settings → Integrations → Claude">
+  열려 있는 Anyon UI에서 **Settings → General → Claude Code** 카드를 찾고 **Connect** 버튼을 클릭하세요.
 </Step>
 
-<Step title="Follow the login instructions">
-  Complete the authentication flow as prompted. For more details, see the [Claude Code documentation](https://docs.claude.com/en/docs/claude-code/quickstart).
+<Step title="CLI 출력 확인">
+  브라우저에 Claude 로그인 모달이 열리면 CLI 출력이 실시간으로 스트리밍됩니다. 버튼으로 로그인 옵션을 선택하면 Anyon이 컨테이너 내부 `claude login --stdio` 명령에 입력을 전달합니다.
 </Step>
 
-<Step title="Start Anyon">
-  Once authenticated, launch Anyon:
+<Step title="브라우저 승인">
+  모달에서 승인 URL이 표시되면 자동으로 새 탭이 열립니다. Anthropic/Claude 계정으로 로그인하고 승인을 완료하면 CLI가 자격 증명을 저장합니다.
+</Step>
 
-  ```bash
-  npx anyon
-  ```
-
-  You can now select Claude Code when creating task attempts.
+<Step title="Secret 저장 & 완료">
+  성공 메시지가 표시되면 SecretStore에 Claude 토큰이 암호화되어 저장되고 컨테이너 비밀 디렉터리가 정리됩니다. 이제 Anyon에서 Claude Code를 선택하여 작업을 실행할 수 있습니다.
 </Step>
 </Steps>
+
+> CLI를 직접 실행하고 싶다면 기존 절차(`npx -y @anthropic-ai/claude-code`)도 사용할 수 있지만, Cloud 배포에서는 웹 UI를 통해 로그인해야 컨테이너에 시크릿이 자동 주입됩니다.

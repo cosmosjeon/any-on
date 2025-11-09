@@ -1,0 +1,40 @@
+name: Build Claude Runtime Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Container tag (e.g. v0.1.0)"
+        required: true
+      push_image:
+        description: "Push image to registry"
+        required: true
+        default: "false"
+  push:
+    branches:
+      - main
+    paths:
+      - 'docker/claude-code/**'
+      - 'scripts/docker/build-claude-runtime.sh'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker registry auth
+        if: github.event.inputs.push_image == 'true'
+        env:
+          REGISTRY_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+        run: |
+          echo "$REGISTRY_PASSWORD" | docker login ${{ secrets.DOCKER_REGISTRY }} -u "$REGISTRY_USERNAME" --password-stdin
+      - name: Build Claude runtime image
+        env:
+          ANYON_CLOUD_IMAGE: ${{ secrets.DOCKER_REGISTRY || 'anyon-claude' }}:${{ github.event.inputs.image_tag || 'latest' }}
+          PUSH_IMAGE: ${{ github.event.inputs.push_image || 'false' }}
+        run: |
+          ./scripts/docker/build-claude-runtime.sh

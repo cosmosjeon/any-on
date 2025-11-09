@@ -46,6 +46,7 @@ use crate::services::{
     image::ImageService,
     worktree_manager::{WorktreeError, WorktreeManager},
 };
+use executors::command::{CommandRuntime, HostCommandRuntime};
 pub type ContainerRef = String;
 
 /// Data needed for background worktree cleanup (doesn't require DB access)
@@ -192,12 +193,29 @@ pub trait ContainerService {
     ) -> Result<ContainerRef, ContainerError>;
     async fn is_container_clean(&self, task_attempt: &TaskAttempt) -> Result<bool, ContainerError>;
 
+    async fn start_execution_with_runtime(
+        &self,
+        task_attempt: &TaskAttempt,
+        execution_process: &ExecutionProcess,
+        executor_action: &ExecutorAction,
+        runtime: &dyn CommandRuntime,
+    ) -> Result<(), ContainerError>;
+
     async fn start_execution_inner(
         &self,
         task_attempt: &TaskAttempt,
         execution_process: &ExecutionProcess,
         executor_action: &ExecutorAction,
-    ) -> Result<(), ContainerError>;
+    ) -> Result<(), ContainerError> {
+        let runtime = HostCommandRuntime;
+        self.start_execution_with_runtime(
+            task_attempt,
+            execution_process,
+            executor_action,
+            &runtime,
+        )
+        .await
+    }
 
     async fn stop_execution(
         &self,

@@ -8,7 +8,6 @@ use axum::{
     routing::{get, post},
 };
 use deployment::{Deployment, DeploymentError};
-use futures::future;
 use octocrab::auth::Continue;
 use serde::{Deserialize, Serialize};
 use services::services::{

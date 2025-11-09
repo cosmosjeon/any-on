@@ -55,6 +55,8 @@ impl Deployment for CloudDeployment {
         let inner = LocalDeployment::new().await?;
         let container = CloudContainerService::new(
             inner.local_container_service().clone(),
+            inner.secret_store().clone(),
+            inner.user_id().to_string(),
             CloudContainerSettings {
                 default_image: cloud_config.container_image().to_string(),
                 ..CloudContainerSettings::default()

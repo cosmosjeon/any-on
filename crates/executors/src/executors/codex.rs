@@ -13,13 +13,11 @@ use codex_app_server_protocol::NewConversationParams;
 use codex_protocol::{
     config_types::SandboxMode as CodexSandboxMode, protocol::AskForApproval as CodexAskForApproval,
 };
-use command_group::AsyncCommandGroup;
 use derivative::Derivative;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use strum_macros::AsRefStr;
-use tokio::process::Command;
 use ts_rs::TS;
 use workspace_utils::msg_store::MsgStore;
 
@@ -31,7 +29,10 @@ use self::{
 };
 use crate::{
     approvals::ExecutorApprovalService,
-    command::{CmdOverrides, CommandBuilder, CommandParts, apply_overrides},
+    command::{
+        CmdOverrides, CommandBuilder, CommandParts, CommandRuntime, ExecutionCommand,
+        StdioConfig, apply_overrides,
+    },
     executors::{
         AppendPrompt, ExecutorError, SpawnedChild, StandardCodingAgentExecutor,
         codex::{jsonrpc::ExitSignalSender, normalize_logs::Error},
@@ -141,9 +142,15 @@ impl StandardCodingAgentExecutor for Codex {
         self.approvals = Some(approvals);
     }
 
-    async fn spawn(&self, current_dir: &Path, prompt: &str) -> Result<SpawnedChild, ExecutorError> {
+    async fn spawn(
+        &self,
+        current_dir: &Path,
+        prompt: &str,
+        runtime: &dyn CommandRuntime,
+    ) -> Result<SpawnedChild, ExecutorError> {
         let command_parts = self.build_command_builder().build_initial()?;
-        self.spawn(current_dir, prompt, command_parts, None).await
+        self.spawn(current_dir, prompt, command_parts, None, runtime)
+            .await
     }
 
     async fn spawn_follow_up(
@@ -151,9 +158,10 @@ impl StandardCodingAgentExecutor for Codex {
         current_dir: &Path,
         prompt: &str,
         session_id: &str,
+        runtime: &dyn CommandRuntime,
     ) -> Result<SpawnedChild, ExecutorError> {
         let command_parts = self.build_command_builder().build_follow_up(&[])?;
-        self.spawn(current_dir, prompt, command_parts, Some(session_id))
+        self.spawn(current_dir, prompt, command_parts, Some(session_id), runtime)
             .await
     }
 
@@ -249,23 +257,21 @@ impl Codex {
         prompt: &str,
         command_parts: CommandParts,
         resume_session: Option<&str>,
+        runtime: &dyn CommandRuntime,
     ) -> Result<SpawnedChild, ExecutorError> {
         let combined_prompt = self.append_prompt.combine_prompt(prompt);
-        let (program_path, args) = command_parts.into_resolved().await?;
+        let (program, args) = command_parts.into_owned();
 
-        let mut process = Command::new(program_path);
-        process
-            .kill_on_drop(true)
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .current_dir(current_dir)
-            .args(&args)
-            .env("NODE_NO_WARNINGS", "1")
-            .env("NO_COLOR", "1")
-            .env("RUST_LOG", "error");
+        let mut exec_command = ExecutionCommand::new(program, args, current_dir.to_path_buf());
+        exec_command.kill_on_drop(true);
+        exec_command.stdin(StdioConfig::piped());
+        exec_command.stdout(StdioConfig::piped());
+        exec_command.stderr(StdioConfig::piped());
+        exec_command.env("NODE_NO_WARNINGS", "1");
+        exec_command.env("NO_COLOR", "1");
+        exec_command.env("RUST_LOG", "error");
 
-        let mut child = process.group_spawn()?;
+        let mut child = runtime.spawn(exec_command).await?;
 
         let child_stdout = child.inner().stdout.take().ok_or_else(|| {
             ExecutorError::Io(std::io::Error::other("Codex app server missing stdout"))

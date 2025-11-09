@@ -1,12 +1,11 @@
 use core::str;
-use std::{collections::HashMap, path::Path, process::Stdio, sync::Arc, time::Duration};
+use std::{collections::HashMap, path::Path, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
-use command_group::AsyncCommandGroup;
 use futures::StreamExt;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use tokio::{io::AsyncWriteExt, process::Command};
+use tokio::io::AsyncWriteExt;
 use ts_rs::TS;
 use workspace_utils::{
     diff::{
@@ -19,7 +18,10 @@ use workspace_utils::{
 };
 
 use crate::{
-    command::{CmdOverrides, CommandBuilder, apply_overrides},
+    command::{
+        CmdOverrides, CommandBuilder, CommandRuntime, ExecutionCommand,
+        StdioConfig, apply_overrides,
+    },
     executors::{AppendPrompt, ExecutorError, SpawnedChild, StandardCodingAgentExecutor},
     logs::{
         ActionType, FileChange, NormalizedEntry, NormalizedEntryError, NormalizedEntryType,
@@ -69,25 +71,27 @@ impl CursorAgent {
 
 #[async_trait]
 impl StandardCodingAgentExecutor for CursorAgent {
-    async fn spawn(&self, current_dir: &Path, prompt: &str) -> Result<SpawnedChild, ExecutorError> {
+    async fn spawn(
+        &self,
+        current_dir: &Path,
+        prompt: &str,
+        runtime: &dyn CommandRuntime,
+    ) -> Result<SpawnedChild, ExecutorError> {
         mcp::ensure_mcp_server_trust(self, current_dir).await;
 
         let command_parts = self.build_command_builder().build_initial()?;
 
-        let (executable_path, args) = command_parts.into_resolved().await?;
+        let (program, args) = command_parts.into_owned();
 
         let combined_prompt = self.append_prompt.combine_prompt(prompt);
 
-        let mut command = Command::new(executable_path);
-        command
-            .kill_on_drop(true)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .current_dir(current_dir)
-            .args(&args);
+        let mut exec_command = ExecutionCommand::new(program, args, current_dir.to_path_buf());
+        exec_command.kill_on_drop(true);
+        exec_command.stdin(StdioConfig::piped());
+        exec_command.stdout(StdioConfig::piped());
+        exec_command.stderr(StdioConfig::piped());
 
-        let mut child = command.group_spawn()?;
+        let mut child = runtime.spawn(exec_command).await?;
 
         if let Some(mut stdin) = child.inner().stdin.take() {
             stdin.write_all(combined_prompt.as_bytes()).await?;
@@ -102,26 +106,24 @@ impl StandardCodingAgentExecutor for CursorAgent {
         current_dir: &Path,
         prompt: &str,
         session_id: &str,
+        runtime: &dyn CommandRuntime,
     ) -> Result<SpawnedChild, ExecutorError> {
         mcp::ensure_mcp_server_trust(self, current_dir).await;
 
         let command_parts = self
             .build_command_builder()
             .build_follow_up(&["--resume".to_string(), session_id.to_string()])?;
-        let (executable_path, args) = command_parts.into_resolved().await?;
+        let (program, args) = command_parts.into_owned();
 
         let combined_prompt = self.append_prompt.combine_prompt(prompt);
 
-        let mut command = Command::new(executable_path);
-        command
-            .kill_on_drop(true)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .current_dir(current_dir)
-            .args(&args);
+        let mut exec_command = ExecutionCommand::new(program, args, current_dir.to_path_buf());
+        exec_command.kill_on_drop(true);
+        exec_command.stdin(StdioConfig::piped());
+        exec_command.stdout(StdioConfig::piped());
+        exec_command.stderr(StdioConfig::piped());
 
-        let mut child = command.group_spawn()?;
+        let mut child = runtime.spawn(exec_command).await?;
 
         if let Some(mut stdin) = child.inner().stdin.take() {
             stdin.write_all(combined_prompt.as_bytes()).await?;
