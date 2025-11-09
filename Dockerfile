@@ -23,6 +23,7 @@ WORKDIR /app
 COPY package*.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY frontend/package*.json ./frontend/
 COPY npx-cli/package*.json ./npx-cli/
+COPY anyon-web-companion/packages/anyon-web-companion/package.json ./anyon-web-companion/packages/anyon-web-companion/
 
 # Install pnpm and dependencies
 RUN npm install -g pnpm && pnpm install

@@ -2,6 +2,7 @@
 
 use std::{
     collections::HashMap,
+    fs,
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
@@ -17,16 +18,185 @@ use db::{
         task_attempt::TaskAttempt,
     },
 };
-use executors::actions::ExecutorAction;
-use tokio::sync::RwLock;
+use executors::{
+    actions::ExecutorAction,
+    command::{CommandRuntime, ExecutionCommand, StdioConfig},
+};
+use tokio::{process::Command, sync::RwLock};
 use utils::{log_msg::LogMsg, msg_store::MsgStore};
+use command_group::{AsyncCommandGroup, AsyncGroupChild};
+use std::process::Stdio;
 use uuid::Uuid;
 
 use crate::services::{
     container::{ContainerError, ContainerRef, ContainerService},
     docker_poc::DockerHarness,
     git::GitService,
+    secret_store::{SecretStore, SECRET_CLAUDE_ACCESS, SECRET_GITHUB_OAUTH, SECRET_GITHUB_PAT},
 };
+use executors::executors::ExecutorError;
+use utils::path::get_anyon_temp_dir;
+
+struct DockerCommandRuntime {
+    container_id: String,
+    host_worktree: PathBuf,
+    workspace_mount: PathBuf,
+    base_env: Vec<(String, String)>,
+}
+
+impl DockerCommandRuntime {
+    fn new(
+        container_id: String,
+        host_worktree: PathBuf,
+        workspace_mount: PathBuf,
+        base_env: Vec<(String, String)>,
+    ) -> Self {
+        Self {
+            container_id,
+            host_worktree,
+            workspace_mount,
+            base_env,
+        }
+    }
+
+    fn container_workdir(&self, current_dir: &Path) -> PathBuf {
+        match current_dir.strip_prefix(&self.host_worktree) {
+            Ok(rem) => self.workspace_mount.join(rem),
+            Err(_) => self.workspace_mount.clone(),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum IoStream {
+    Stdin,
+    Stdout,
+    Stderr,
+}
+
+fn apply_stdio(command: &mut Command, config: StdioConfig, stream: IoStream) {
+    let stdio = match config {
+        StdioConfig::Inherit => Stdio::inherit(),
+        StdioConfig::Piped => Stdio::piped(),
+        StdioConfig::Null => Stdio::null(),
+    };
+
+    match stream {
+        IoStream::Stdin => {
+            command.stdin(stdio);
+        }
+        IoStream::Stdout => {
+            command.stdout(stdio);
+        }
+        IoStream::Stderr => {
+            command.stderr(stdio);
+        }
+    }
+}
+
+async fn write_secret_file(path: &Path, data: &[u8]) -> Result<(), ContainerError> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    tokio::fs::write(path, data)
+        .await
+        .map_err(ContainerError::Io)?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let perms = std::fs::Permissions::from_mode(0o600);
+        tokio::fs::set_permissions(path, perms)
+            .await
+            .map_err(ContainerError::Io)?;
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    #[test]
+    fn container_workdir_maps_to_workspace() {
+        let runtime = DockerCommandRuntime::new(
+            "cid".into(),
+            PathBuf::from("/host/worktree"),
+            PathBuf::from("/workspace"),
+            vec![],
+        );
+
+        let inside = runtime.container_workdir(Path::new("/host/worktree/project"));
+        assert_eq!(inside, PathBuf::from("/workspace/project"));
+
+        let outside = runtime.container_workdir(Path::new("/somewhere/else"));
+        assert_eq!(outside, PathBuf::from("/workspace"));
+    }
+
+    #[tokio::test]
+    async fn write_secret_file_creates_and_sets_permissions() {
+        let dir = tempdir().unwrap();
+        let target = dir.path().join("nested/secret.json");
+        write_secret_file(&target, b"token").await.unwrap();
+
+        assert!(target.exists());
+        let content = tokio::fs::read(&target).await.unwrap();
+        assert_eq!(content, b"token");
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&target)
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777;
+            assert_eq!(mode, 0o600, "secret files should be 600");
+        }
+    }
+}
+
+#[async_trait]
+impl CommandRuntime for DockerCommandRuntime {
+    async fn spawn(&self, command: ExecutionCommand) -> Result<AsyncGroupChild, ExecutorError> {
+        let mut process = Command::new("docker");
+        process.arg("exec").arg("-i");
+
+        let workdir = self.container_workdir(command.current_dir_path());
+        process
+            .arg("--workdir")
+            .arg(workdir.to_string_lossy().to_string());
+
+        for (key, value) in &self.base_env {
+            process.arg("--env").arg(format!("{}={}", key, value));
+        }
+
+        for (key, value) in command.env_vars() {
+            process.arg("--env").arg(format!(
+                "{}={}",
+                key.to_string_lossy(),
+                value.to_string_lossy()
+            ));
+        }
+
+        process.arg(&self.container_id);
+        process.arg(command.program());
+        process.args(command.args_slice());
+
+        apply_stdio(&mut process, command.stdin_config(), IoStream::Stdin);
+        apply_stdio(&mut process, command.stdout_config(), IoStream::Stdout);
+        apply_stdio(&mut process, command.stderr_config(), IoStream::Stderr);
+
+        if command.should_kill_on_drop() {
+            process.kill_on_drop(true);
+        }
+
+        let child = process.group_spawn()?;
+        Ok(child)
+    }
+}
 
 /// Default image used when no explicit image is provided via configuration.
 const DEFAULT_IMAGE: &str = "anyon-claude:latest";
@@ -36,6 +206,7 @@ const DEFAULT_MOUNT: &str = "/workspace";
 pub struct CloudContainerSettings {
     pub default_image: String,
     pub workspace_mount: String,
+    pub secrets_mount: String,
     pub idle_command: Vec<String>,
 }
 
@@ -44,6 +215,7 @@ impl Default for CloudContainerSettings {
         Self {
             default_image: DEFAULT_IMAGE.to_string(),
             workspace_mount: DEFAULT_MOUNT.to_string(),
+            secrets_mount: "/tmp/anyon-secrets".to_string(),
             idle_command: vec![
                 "/bin/sh".to_string(),
                 "-c".to_string(),
@@ -57,6 +229,7 @@ impl Default for CloudContainerSettings {
 struct ProvisionedContainer {
     container_id: String,
     worktree: PathBuf,
+    secret_dir: PathBuf,
 }
 
 #[derive(Clone)]
@@ -67,6 +240,8 @@ where
     inner: T,
     docker: Arc<DockerHarness>,
     settings: Arc<CloudContainerSettings>,
+    secret_store: SecretStore,
+    user_id: String,
     provisioned: Arc<DashMap<Uuid, ProvisionedContainer>>,
     provision_lock: Arc<tokio::sync::Mutex<()>>,
 }
@@ -75,7 +250,12 @@ impl<T> CloudContainerService<T>
 where
     T: ContainerService + Clone + Send + Sync,
 {
-    pub async fn new(inner: T, settings: CloudContainerSettings) -> Result<Self, ContainerError> {
+    pub async fn new(
+        inner: T,
+        secret_store: SecretStore,
+        user_id: String,
+        settings: CloudContainerSettings,
+    ) -> Result<Self, ContainerError> {
         let harness = DockerHarness::connect()
             .await
             .map_err(|err| ContainerError::Other(err.into()))?;
@@ -84,6 +264,8 @@ where
             inner,
             docker: Arc::new(harness),
             settings: Arc::new(settings),
+             secret_store,
+             user_id,
             provisioned: Arc::new(DashMap::new()),
             provision_lock: Arc::new(tokio::sync::Mutex::new(())),
         })
@@ -129,12 +311,22 @@ where
             .await
             .map_err(|err| ContainerError::Other(err.into()))?;
 
+        let secret_dir = self.secret_host_dir(&task_attempt.id);
+        fs::create_dir_all(&secret_dir)?;
+
         let host_config = HostConfig {
-            binds: Some(vec![format!(
-                "{}:{}:rw",
-                normalized.display(),
-                self.settings.workspace_mount
-            )]),
+            binds: Some(vec![
+                format!(
+                    "{}:{}:rw",
+                    normalized.display(),
+                    self.settings.workspace_mount
+                ),
+                format!(
+                    "{}:{}:rw",
+                    secret_dir.display(),
+                    self.settings.secrets_mount
+                ),
+            ]),
             ..Default::default()
         };
 
@@ -166,10 +358,84 @@ where
             ProvisionedContainer {
                 container_id: container_id.clone(),
                 worktree: normalized,
+                secret_dir,
             },
         );
 
         Ok(container_id)
+    }
+
+    async fn prepare_env(
+        &self,
+        container: &ProvisionedContainer,
+    ) -> Result<Vec<(String, String)>, ContainerError> {
+        if !container.secret_dir.exists() {
+            fs::create_dir_all(&container.secret_dir)?;
+        }
+
+        let mut env = vec![
+            (
+                "ANYON_SECRET_DIR".into(),
+                self.settings.secrets_mount.clone(),
+            ),
+        ];
+
+        if let Some(claude_blob) = self
+            .secret_store
+            .get_secret(&self.user_id, SECRET_CLAUDE_ACCESS)
+            .await
+            .map_err(|err| ContainerError::Other(err.into()))?
+        {
+            let path = container.secret_dir.join("claude-config.json");
+            write_secret_file(&path, &claude_blob).await?;
+            env.push((
+                "CLAUDE_CONFIG_PATH".into(),
+                self.secret_mount_path("claude-config.json"),
+            ));
+        }
+
+        let github_pat = self
+            .secret_store
+            .get_secret_string(&self.user_id, SECRET_GITHUB_PAT)
+            .await
+            .map_err(|err| ContainerError::Other(err.into()))?;
+        let github_oauth = self
+            .secret_store
+            .get_secret_string(&self.user_id, SECRET_GITHUB_OAUTH)
+            .await
+            .map_err(|err| ContainerError::Other(err.into()))?;
+
+        let github_token = github_pat.or(github_oauth);
+        if let Some(token) = github_token {
+            let trimmed = token.trim();
+            if !trimmed.is_empty() {
+                let creds_path = container.secret_dir.join("github-credentials");
+                let creds_content = format!("https://x-access-token:{}@github.com\n", trimmed);
+                write_secret_file(&creds_path, creds_content.as_bytes()).await?;
+
+                let gitconfig_path = container.secret_dir.join("gitconfig");
+                let helper_path = self.secret_mount_path("github-credentials");
+                let gitconfig_content = format!(
+                    "[credential]\n\thelper = store --file={}\n",
+                    helper_path
+                );
+                write_secret_file(&gitconfig_path, gitconfig_content.as_bytes()).await?;
+
+                env.push((
+                    "GIT_CONFIG_GLOBAL".into(),
+                    self.secret_mount_path("gitconfig"),
+                ));
+                env.push(("GITHUB_TOKEN".into(), trimmed.to_string()));
+                env.push(("GH_TOKEN".into(), trimmed.to_string()));
+            }
+        }
+
+        Ok(env)
+    }
+
+    fn secret_mount_path(&self, file: &str) -> String {
+        let mount = self.settings.secrets_mount.trim_end_matches('/');
+        format!("{}/{}", mount, file)
     }
 
     async fn teardown(&self, attempt_id: &Uuid) {
@@ -194,11 +460,24 @@ where
                     record.container_id
                 );
             }
+
+            if let Err(err) = tokio::fs::remove_dir_all(&record.secret_dir).await {
+                tracing::debug!(
+                    "failed to remove secret directory {}: {err}",
+                    record.secret_dir.display()
+                );
+            }
         }
     }
 
     fn normalize_path(path: &Path) -> PathBuf {
         dunce::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+    }
+
+    fn secret_host_dir(&self, attempt_id: &Uuid) -> PathBuf {
+        get_anyon_temp_dir()
+            .join("cloud-secrets")
+            .join(attempt_id.to_string())
     }
 }
 
@@ -249,6 +528,23 @@ where
         self.inner.is_container_clean(task_attempt).await
     }
 
+    async fn start_execution_with_runtime(
+        &self,
+        task_attempt: &TaskAttempt,
+        execution_process: &ExecutionProcess,
+        executor_action: &ExecutorAction,
+        runtime: &dyn CommandRuntime,
+    ) -> Result<(), ContainerError> {
+        self.inner
+            .start_execution_with_runtime(
+                task_attempt,
+                execution_process,
+                executor_action,
+                runtime,
+            )
+            .await
+    }
+
     async fn start_execution_inner(
         &self,
         task_attempt: &TaskAttempt,
@@ -259,8 +555,31 @@ where
             let worktree_path = PathBuf::from(container_ref);
             self.ensure_runner(task_attempt, &worktree_path).await?;
         }
+        let provision = self
+            .provisioned
+            .get(&task_attempt.id)
+            .ok_or_else(|| ContainerError::Other(anyhow::anyhow!(
+                "Cloud container missing for attempt {}",
+                task_attempt.id
+            )))?;
+        let container_info = provision.clone();
+        drop(provision);
+
+        let base_env = self.prepare_env(&container_info).await?;
+        let runtime = DockerCommandRuntime::new(
+            container_info.container_id.clone(),
+            container_info.worktree.clone(),
+            PathBuf::from(&self.settings.workspace_mount),
+            base_env,
+        );
+
         self.inner
-            .start_execution_inner(task_attempt, execution_process, executor_action)
+            .start_execution_with_runtime(
+                task_attempt,
+                execution_process,
+                executor_action,
+                &runtime,
+            )
             .await
     }
 

@@ -1,15 +1,17 @@
-use std::{path::Path, process::Stdio, sync::Arc};
+use std::{path::Path, sync::Arc};
 
 use async_trait::async_trait;
-use command_group::AsyncCommandGroup;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use tokio::{io::AsyncWriteExt, process::Command};
+use tokio::io::AsyncWriteExt;
 use ts_rs::TS;
 use workspace_utils::msg_store::MsgStore;
 
 use crate::{
-    command::{CmdOverrides, CommandBuilder, apply_overrides},
+    command::{
+        CmdOverrides, CommandBuilder, CommandParts, CommandRuntime, ExecutionCommand,
+        StdioConfig, apply_overrides,
+    },
     executors::{
         AppendPrompt, ExecutorError, SpawnedChild, StandardCodingAgentExecutor,
         claude::{ClaudeLogProcessor, HistoryStrategy},
@@ -40,26 +42,46 @@ impl Amp {
         }
         apply_overrides(builder, &self.cmd)
     }
+
+    async fn run_command_and_capture(
+        &self,
+        command_parts: CommandParts,
+        current_dir: &Path,
+        runtime: &dyn CommandRuntime,
+    ) -> Result<std::process::Output, ExecutorError> {
+        let (program, args) = command_parts.into_owned();
+        let mut exec_command = ExecutionCommand::new(program, args, current_dir.to_path_buf());
+        exec_command.kill_on_drop(true);
+        exec_command.stdin(StdioConfig::Null);
+        exec_command.stdout(StdioConfig::piped());
+        exec_command.stderr(StdioConfig::piped());
+
+        let child = runtime.spawn(exec_command).await?;
+        let output = child.wait_with_output().await?;
+        Ok(output)
+    }
 }
 
 #[async_trait]
 impl StandardCodingAgentExecutor for Amp {
-    async fn spawn(&self, current_dir: &Path, prompt: &str) -> Result<SpawnedChild, ExecutorError> {
+    async fn spawn(
+        &self,
+        current_dir: &Path,
+        prompt: &str,
+        runtime: &dyn CommandRuntime,
+    ) -> Result<SpawnedChild, ExecutorError> {
         let command_parts = self.build_command_builder().build_initial()?;
-        let (executable_path, args) = command_parts.into_resolved().await?;
+        let (program, args) = command_parts.into_owned();
 
         let combined_prompt = self.append_prompt.combine_prompt(prompt);
 
-        let mut command = Command::new(executable_path);
-        command
-            .kill_on_drop(true)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .current_dir(current_dir)
-            .args(&args);
+        let mut exec_command = ExecutionCommand::new(program, args, current_dir.to_path_buf());
+        exec_command.kill_on_drop(true);
+        exec_command.stdin(StdioConfig::piped());
+        exec_command.stdout(StdioConfig::piped());
+        exec_command.stderr(StdioConfig::piped());
 
-        let mut child = command.group_spawn()?;
+        let mut child = runtime.spawn(exec_command).await?;
 
         // Feed the prompt in, then close the pipe so amp sees EOF
         if let Some(mut stdin) = child.inner().stdin.take() {
@@ -75,6 +97,7 @@ impl StandardCodingAgentExecutor for Amp {
         current_dir: &Path,
         prompt: &str,
         session_id: &str,
+        runtime: &dyn CommandRuntime,
     ) -> Result<SpawnedChild, ExecutorError> {
         // 1) Fork the thread synchronously to obtain new thread id
         let builder = self.build_command_builder();
@@ -83,14 +106,8 @@ impl StandardCodingAgentExecutor for Amp {
             "fork".to_string(),
             session_id.to_string(),
         ])?;
-        let (fork_program, fork_args) = fork_line.into_resolved().await?;
-        let fork_output = Command::new(fork_program)
-            .kill_on_drop(true)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .current_dir(current_dir)
-            .args(&fork_args)
-            .output()
+        let fork_output = self
+            .run_command_and_capture(fork_line, current_dir, runtime)
             .await?;
         let stdout_str = String::from_utf8_lossy(&fork_output.stdout);
         let new_thread_id = stdout_str
@@ -114,20 +131,18 @@ impl StandardCodingAgentExecutor for Amp {
             "continue".to_string(),
             new_thread_id.clone(),
         ])?;
-        let (continue_program, continue_args) = continue_line.into_resolved().await?;
+        let (continue_program, continue_args) = continue_line.into_owned();
 
         let combined_prompt = self.append_prompt.combine_prompt(prompt);
 
-        let mut command = Command::new(continue_program);
-        command
-            .kill_on_drop(true)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .current_dir(current_dir)
-            .args(&continue_args);
+        let mut exec_command =
+            ExecutionCommand::new(continue_program, continue_args, current_dir.to_path_buf());
+        exec_command.kill_on_drop(true);
+        exec_command.stdin(StdioConfig::piped());
+        exec_command.stdout(StdioConfig::piped());
+        exec_command.stderr(StdioConfig::piped());
 
-        let mut child = command.group_spawn()?;
+        let mut child = runtime.spawn(exec_command).await?;
 
         // Feed the prompt in, then close the pipe so amp sees EOF
         if let Some(mut stdin) = child.inner().stdin.take() {

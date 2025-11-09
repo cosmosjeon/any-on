@@ -11,6 +11,7 @@ use crate::{
         coding_agent_initial::CodingAgentInitialRequest, script::ScriptRequest,
     },
     approvals::ExecutorApprovalService,
+    command::CommandRuntime,
     executors::{BaseCodingAgent, ExecutorError, SpawnedChild},
 };
 pub mod coding_agent_follow_up;
@@ -71,6 +72,7 @@ pub trait Executable {
         &self,
         current_dir: &Path,
         approvals: Arc<dyn ExecutorApprovalService>,
+        runtime: &dyn CommandRuntime,
     ) -> Result<SpawnedChild, ExecutorError>;
 }
 
@@ -80,7 +82,8 @@ impl Executable for ExecutorAction {
         &self,
         current_dir: &Path,
         approvals: Arc<dyn ExecutorApprovalService>,
+        runtime: &dyn CommandRuntime,
     ) -> Result<SpawnedChild, ExecutorError> {
-        self.typ.spawn(current_dir, approvals).await
+        self.typ.spawn(current_dir, approvals, runtime).await
     }
 }
