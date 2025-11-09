@@ -29,15 +29,15 @@ pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
         .route("/auth/github/check", get(github_check_token))
         .route("/auth/claude/session", post(claude_session_start))
         .route(
-            "/auth/claude/session/:session_id/stream",
+?            "/auth/claude/session/{session_id}/stream",
             get(claude_session_stream),
         )
         .route(
-            "/auth/claude/session/:session_id/input",
+            "/auth/claude/session/{session_id}/input",
             post(claude_session_input),
         )
         .route(
-            "/auth/claude/session/:session_id/cancel",
+            "/auth/claude/session/{session_id}/cancel",
             post(claude_session_cancel),
         )
         .route("/auth/claude/logout", post(claude_logout))

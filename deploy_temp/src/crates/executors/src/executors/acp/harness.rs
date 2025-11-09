@@ -1,14 +1,13 @@
 use std::{
     path::{Path, PathBuf},
-    process::Stdio,
     sync::Arc,
 };
 
 use agent_client_protocol as proto;
 use agent_client_protocol::Agent as _;
-use command_group::{AsyncCommandGroup, AsyncGroupChild};
+use command_group::AsyncGroupChild;
 use futures::StreamExt;
-use tokio::{io::AsyncWriteExt, process::Command, sync::mpsc};
+use tokio::{io::AsyncWriteExt, sync::mpsc};
 use tokio_util::{
     compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt},
     io::ReaderStream,
@@ -18,7 +17,7 @@ use workspace_utils::stream_lines::LinesStreamExt;
 
 use super::{AcpClient, SessionManager};
 use crate::{
-    command::CommandParts,
+    command::{CommandParts, CommandRuntime, ExecutionCommand, StdioConfig},
     executors::{ExecutorError, SpawnedChild, acp::AcpEvent},
 };
 
@@ -54,19 +53,17 @@ impl AcpAgentHarness {
         current_dir: &Path,
         prompt: String,
         command_parts: CommandParts,
+        runtime: &dyn CommandRuntime,
     ) -> Result<SpawnedChild, ExecutorError> {
-        let (program_path, args) = command_parts.into_resolved().await?;
-        let mut command = Command::new(program_path);
-        command
-            .kill_on_drop(true)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .current_dir(current_dir)
-            .args(&args)
-            .env("NODE_NO_WARNINGS", "1");
+        let (program, args) = command_parts.into_owned();
+        let mut exec_command = ExecutionCommand::new(program, args, current_dir.to_path_buf());
+        exec_command.kill_on_drop(true);
+        exec_command.stdin(StdioConfig::piped());
+        exec_command.stdout(StdioConfig::piped());
+        exec_command.stderr(StdioConfig::piped());
+        exec_command.env("NODE_NO_WARNINGS", "1");
 
-        let mut child = command.group_spawn()?;
+        let mut child = runtime.spawn(exec_command).await?;
 
         let (exit_tx, exit_rx) = tokio::sync::oneshot::channel::<()>();
         Self::bootstrap_acp_connection(
@@ -91,19 +88,17 @@ impl AcpAgentHarness {
         prompt: String,
         session_id: &str,
         command_parts: CommandParts,
+        runtime: &dyn CommandRuntime,
     ) -> Result<SpawnedChild, ExecutorError> {
-        let (program_path, args) = command_parts.into_resolved().await?;
-        let mut command = Command::new(program_path);
-        command
-            .kill_on_drop(true)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .current_dir(current_dir)
-            .args(&args)
-            .env("NODE_NO_WARNINGS", "1");
+        let (program, args) = command_parts.into_owned();
+        let mut exec_command = ExecutionCommand::new(program, args, current_dir.to_path_buf());
+        exec_command.kill_on_drop(true);
+        exec_command.stdin(StdioConfig::piped());
+        exec_command.stdout(StdioConfig::piped());
+        exec_command.stderr(StdioConfig::piped());
+        exec_command.env("NODE_NO_WARNINGS", "1");
 
-        let mut child = command.group_spawn()?;
+        let mut child = runtime.spawn(exec_command).await?;
 
         let (exit_tx, exit_rx) = tokio::sync::oneshot::channel::<()>();
         Self::bootstrap_acp_connection(

@@ -1,4 +1,5 @@
 use std::{
+    fs,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -6,8 +7,9 @@ use std::{
 use dashmap::DashMap;
 use serde::Serialize;
 use shlex::Shlex;
+use thiserror::Error;
 use tokio::{
-    fs,
+    fs as async_fs,
     io::{AsyncBufReadExt, AsyncRead, AsyncWriteExt, BufReader},
     process::{Child, ChildStdin, Command},
     sync::{broadcast, mpsc, Mutex},
@@ -21,21 +23,21 @@ use utils::path::get_anyon_temp_dir;
 
 const CLAUDE_LOGIN_DEFAULT_CMD: &str = "claude login --stdio";
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Error)]
 pub enum ClaudeAuthError {
     #[error("Claude login command not configured")]
     CommandNotConfigured,
-    #[error("Failed to spawn Claude CLI: {0}")]
+    #[error("Failed to start Claude CLI: {0}")]
     Spawn(String),
     #[error("Session not found")]
     SessionNotFound,
-    #[error("CLI stdin closed")]
+    #[error("CLI input channel closed")]
     InputClosed,
-    #[error("IO error: {0}")]
+    #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error(transparent)]
     SecretStore(#[from] SecretStoreError),
-    #[error("Claude CLI produced no credentials")]
+    #[error("Claude CLI did not emit credentials")]
     MissingCredentials,
     #[error("{0}")]
     Other(String),
@@ -57,6 +59,7 @@ struct ClaudeSession {
     home_dir: PathBuf,
     _stdout_task: JoinHandle<()>,
     _stderr_task: JoinHandle<()>,
+    _stdin_task: JoinHandle<()>,
     _monitor_task: JoinHandle<()>,
 }
 
@@ -123,15 +126,9 @@ impl ClaudeAuthManager {
         let child = Arc::new(Mutex::new(Some(child)));
         let stdin_handle = Arc::new(Mutex::new(Some(stdin)));
 
-        let stdout_sender = events_tx.clone();
-        let stderr_sender = events_tx.clone();
-        let stdout_task = tokio::spawn(Self::stream_pipe(stdout, stdout_sender));
-        let stderr_task = tokio::spawn(Self::stream_pipe(stderr, stderr_sender));
-        let stdin_handle_writer = stdin_handle.clone();
-        tokio::spawn(async move {
-            Self::pump_stdin(stdin_handle_writer, stdin_rx).await;
-        });
-
+        let stdout_task = tokio::spawn(Self::stream_pipe(stdout, events_tx.clone()));
+        let stderr_task = tokio::spawn(Self::stream_pipe(stderr, events_tx.clone()));
+        let stdin_task = tokio::spawn(Self::pump_stdin(stdin_handle.clone(), stdin_rx));
         let monitor_task = self.spawn_monitor(
             session_id,
             child.clone(),
@@ -150,6 +147,7 @@ impl ClaudeAuthManager {
                 home_dir,
                 _stdout_task: stdout_task,
                 _stderr_task: stderr_task,
+                _stdin_task: stdin_task,
                 _monitor_task: monitor_task,
             },
         );
@@ -193,11 +191,20 @@ impl ClaudeAuthManager {
                 let _ = child.kill().await;
             }
         }
+
         let _ = session.events_tx.send(ClaudeAuthEvent::Error {
             message: "Session cancelled".into(),
         });
-        let _ = fs::remove_dir_all(&session.home_dir).await;
+        let _ = async_fs::remove_dir_all(&session.home_dir).await;
         Ok(())
+    }
+
+    fn prepare_home_dir(&self, session_id: &Uuid) -> Result<PathBuf, ClaudeAuthError> {
+        let base = get_anyon_temp_dir().join("claude-auth");
+        fs::create_dir_all(&base)?;
+        let session_dir = base.join(session_id.to_string());
+        fs::create_dir_all(&session_dir)?;
+        Ok(session_dir)
     }
 
     fn build_command(&self, home_dir: &Path) -> Result<Command, ClaudeAuthError> {
@@ -213,14 +220,6 @@ impl ClaudeAuthManager {
         command.stdout(std::process::Stdio::piped());
         command.stderr(std::process::Stdio::piped());
         Ok(command)
-    }
-
-    fn prepare_home_dir(&self, session_id: &Uuid) -> Result<PathBuf, ClaudeAuthError> {
-        let base = get_anyon_temp_dir().join("claude-auth");
-        std::fs::create_dir_all(&base).map_err(|e| ClaudeAuthError::Io(e))?;
-        let session_dir = base.join(session_id.to_string());
-        std::fs::create_dir_all(&session_dir).map_err(|e| ClaudeAuthError::Io(e))?;
-        Ok(session_dir)
     }
 
     fn spawn_monitor(
@@ -245,7 +244,7 @@ impl ClaudeAuthManager {
                             let _ = events_tx.send(ClaudeAuthEvent::Error {
                                 message: format!("Claude CLI failed: {err}"),
                             });
-                            let _ = fs::remove_dir_all(&home_dir).await;
+                            let _ = async_fs::remove_dir_all(&home_dir).await;
                             return;
                         }
                     }
@@ -274,7 +273,7 @@ impl ClaudeAuthManager {
             }
 
             sessions.remove(&session_id);
-            let _ = fs::remove_dir_all(&home_dir).await;
+            let _ = async_fs::remove_dir_all(&home_dir).await;
         })
     }
 
@@ -284,7 +283,7 @@ impl ClaudeAuthManager {
         home_dir: &Path,
     ) -> Result<(), ClaudeAuthError> {
         let meta_path = home_dir.join(".claude/meta.json");
-        let data = fs::read(&meta_path)
+        let data = async_fs::read(&meta_path)
             .await
             .map_err(|_| ClaudeAuthError::MissingCredentials)?;
         secret_store
@@ -318,9 +317,13 @@ impl ClaudeAuthManager {
             }
             let mut guard = handle.lock().await;
             if let Some(stdin) = guard.as_mut() {
-                let _ = stdin
+                if stdin
                     .write_all(format!("{trimmed}\n").as_bytes())
-                    .await;
+                    .await
+                    .is_err()
+                {
+                    break;
+                }
                 let _ = stdin.flush().await;
             } else {
                 break;

@@ -181,13 +181,15 @@ async fn claude_session_stream(
         .subscribe(&session_id)
         .map_err(|err| ApiError::Deployment(err.into()))?;
 
-    let mapped = stream.then(|item| async move {
+    let mapped = stream.filter_map(|item| async move {
         match item {
-            Ok(payload) => {
-                Event::default().json_data(&payload)
-                    .map_err(|err| ApiError::Deployment(DeploymentError::Other(err.into())))
-            }
-            Err(_) => Err(ApiError::Deployment(DeploymentError::Other(anyhow::anyhow!("Stream error")))),
+            Ok(payload) => match Event::default().json_data(&payload) {
+                Ok(event) => Some(Ok(event)),
+                Err(err) => Some(Err(ApiError::Deployment(
+                    DeploymentError::Other(err.into()),
+                ))),
+            },
+            Err(_) => None,
         }
     });
 
