@@ -20,7 +20,6 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import '@/styles/diff-style-overrides.css';
-import { attemptsApi } from '@/lib/api';
 import type { TaskAttempt } from 'shared/types';
 import { useReview, type ReviewDraft } from '@/contexts/ReviewProvider';
 import { CommentWidgetLine } from '@/components/diff/CommentWidgetLine';
@@ -235,24 +234,6 @@ export default function DiffCard({
     </p>
   );
 
-  const handleOpenInIDE = async () => {
-    if (!selectedAttempt?.id) return;
-    try {
-      const openPath = newName || oldName;
-      const response = await attemptsApi.openEditor(
-        selectedAttempt.id,
-        undefined,
-        openPath || undefined
-      );
-
-      // If a URL is returned, open it in a new window/tab
-      if (response.url) {
-        window.open(response.url, '_blank');
-      }
-    } catch (err) {
-      console.error('Failed to open file in IDE:', err);
-    }
-  };
 
   const expandable = true;
 
@@ -316,7 +297,7 @@ export default function DiffCard({
           style={{ color: 'hsl(var(--muted-foreground) / 0.9)' }}
         >
           {isOmitted
-            ? 'Content omitted due to file size. Open in editor to view.'
+            ? 'Content omitted due to file size.'
             : isContentEqual
               ? diff.change === 'renamed'
                 ? 'File renamed with no content changes.'

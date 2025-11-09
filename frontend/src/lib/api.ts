@@ -105,9 +105,6 @@ export interface FollowUpResponse {
   created_new_attempt: boolean;
 }
 
-export interface OpenEditorResponse {
-  url: string | null;
-}
 
 export type Ok<T> = { success: true; data: T };
 export type Err<E> = { success: false; error: E | undefined; message?: string };
@@ -260,21 +257,6 @@ export const projectsApi = {
     return handleApiResponse<void>(response);
   },
 
-  openEditor: async (
-    id: string,
-    editorType?: EditorType
-  ): Promise<OpenEditorResponse> => {
-    const requestBody: any = {};
-    if (editorType) requestBody.editor_type = editorType;
-
-    const response = await makeRequest(`/api/projects/${id}/open-editor`, {
-      method: 'POST',
-      body: JSON.stringify(
-        Object.keys(requestBody).length > 0 ? requestBody : null
-      ),
-    });
-    return handleApiResponse<OpenEditorResponse>(response);
-  },
 
   getBranches: async (id: string): Promise<GitBranch[]> => {
     const response = await makeRequest(`/api/projects/${id}/branches`);
@@ -496,26 +478,6 @@ export const attemptsApi = {
     return handleApiResponse<void>(response);
   },
 
-  openEditor: async (
-    attemptId: string,
-    editorType?: EditorType,
-    filePath?: string
-  ): Promise<OpenEditorResponse> => {
-    const requestBody: { editor_type?: EditorType; file_path?: string } = {};
-    if (editorType) requestBody.editor_type = editorType;
-    if (filePath) requestBody.file_path = filePath;
-
-    const response = await makeRequest(
-      `/api/task-attempts/${attemptId}/open-editor`,
-      {
-        method: 'POST',
-        body: JSON.stringify(
-          Object.keys(requestBody).length > 0 ? requestBody : null
-        ),
-      }
-    );
-    return handleApiResponse<OpenEditorResponse>(response);
-  },
 
   getBranchStatus: async (attemptId: string): Promise<BranchStatus> => {
     const response = await makeRequest(

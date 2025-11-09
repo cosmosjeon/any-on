@@ -1,5 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
+use std::path::PathBuf;
+
 use async_trait::async_trait;
 use db::DBService;
 use deployment::{Deployment, DeploymentError};
@@ -227,6 +229,22 @@ impl Deployment for LocalDeployment {
 }
 
 impl LocalDeployment {
+    /// Get workspace directory path
+    /// Uses config.workspace_dir if set, otherwise defaults to ~/workspace (or equivalent)
+    pub fn workspace_dir(&self) -> PathBuf {
+        // Use blocking read since this is a sync method
+        let config = self.config.blocking_read();
+        if let Some(workspace_dir_str) = config.workspace_dir.as_ref() {
+            PathBuf::from(workspace_dir_str)
+        } else {
+            // Default to ~/workspace (Replit-style)
+            let home = std::env::var("HOME")
+                .or_else(|_| std::env::var("USERPROFILE"))
+                .unwrap_or_else(|_| ".".to_string());
+            PathBuf::from(home).join("workspace")
+        }
+    }
+
     /// Expose the underlying local container service so other deployments can
     /// compose additional behavior (e.g., cloud wrappers) without re-building
     /// the entire stack.

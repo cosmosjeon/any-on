@@ -410,7 +410,7 @@ export function GeneralSettings() {
                 <SelectContent>
                   {profiles &&
                     Object.entries(profiles)
-                      .sort((a, b) => a[0].localeCompare(b[0]))
+                      .filter(([profileKey]) => profileKey === 'CLAUDE_CODE')
                       .map(([profileKey]) => (
                         <SelectItem key={profileKey} value={profileKey}>
                           {profileKey}
@@ -490,128 +490,6 @@ export function GeneralSettings() {
               {t('settings.general.taskExecution.executor.helper')}
             </p>
           </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('settings.general.editor.title')}</CardTitle>
-          <CardDescription>
-            {t('settings.general.editor.description')}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="editor-type">
-              {t('settings.general.editor.type.label')}
-            </Label>
-            <Select
-              value={draft?.editor.editor_type}
-              onValueChange={(value: EditorType) =>
-                updateDraft({
-                  editor: { ...draft!.editor, editor_type: value },
-                })
-              }
-            >
-              <SelectTrigger id="editor-type">
-                <SelectValue
-                  placeholder={t('settings.general.editor.type.placeholder')}
-                />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.values(EditorType).map((editor) => (
-                  <SelectItem key={editor} value={editor}>
-                    {toPrettyCase(editor)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-sm text-muted-foreground">
-              {t('settings.general.editor.type.helper')}
-            </p>
-          </div>
-
-          {draft?.editor.editor_type === EditorType.CUSTOM && (
-            <div className="space-y-2">
-              <Label htmlFor="custom-command">
-                {t('settings.general.editor.customCommand.label')}
-              </Label>
-              <Input
-                id="custom-command"
-                placeholder={t(
-                  'settings.general.editor.customCommand.placeholder'
-                )}
-                value={draft?.editor.custom_command || ''}
-                onChange={(e) =>
-                  updateDraft({
-                    editor: {
-                      ...draft!.editor,
-                      custom_command: e.target.value || null,
-                    },
-                  })
-                }
-              />
-              <p className="text-sm text-muted-foreground">
-                {t('settings.general.editor.customCommand.helper')}
-              </p>
-            </div>
-          )}
-
-          {(draft?.editor.editor_type === EditorType.VS_CODE ||
-            draft?.editor.editor_type === EditorType.CURSOR ||
-            draft?.editor.editor_type === EditorType.WINDSURF) && (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="remote-ssh-host">
-                  {t('settings.general.editor.remoteSsh.host.label')}
-                </Label>
-                <Input
-                  id="remote-ssh-host"
-                  placeholder={t(
-                    'settings.general.editor.remoteSsh.host.placeholder'
-                  )}
-                  value={draft?.editor.remote_ssh_host || ''}
-                  onChange={(e) =>
-                    updateDraft({
-                      editor: {
-                        ...draft!.editor,
-                        remote_ssh_host: e.target.value || null,
-                      },
-                    })
-                  }
-                />
-                <p className="text-sm text-muted-foreground">
-                  {t('settings.general.editor.remoteSsh.host.helper')}
-                </p>
-              </div>
-
-              {draft?.editor.remote_ssh_host && (
-                <div className="space-y-2">
-                  <Label htmlFor="remote-ssh-user">
-                    {t('settings.general.editor.remoteSsh.user.label')}
-                  </Label>
-                  <Input
-                    id="remote-ssh-user"
-                    placeholder={t(
-                      'settings.general.editor.remoteSsh.user.placeholder'
-                    )}
-                    value={draft?.editor.remote_ssh_user || ''}
-                    onChange={(e) =>
-                      updateDraft({
-                        editor: {
-                          ...draft!.editor,
-                          remote_ssh_user: e.target.value || null,
-                        },
-                      })
-                    }
-                  />
-                  <p className="text-sm text-muted-foreground">
-                    {t('settings.general.editor.remoteSsh.user.helper')}
-                  </p>
-                </div>
-              )}
-            </>
-          )}
         </CardContent>
       </Card>
 

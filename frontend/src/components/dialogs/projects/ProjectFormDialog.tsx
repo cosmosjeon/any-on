@@ -34,7 +34,7 @@ export const ProjectFormDialog = NiceModal.create<ProjectFormDialogProps>(
     const [name, setName] = useState('');
     const [gitRepoPath, setGitRepoPath] = useState('');
     const [error, setError] = useState('');
-    const [repoMode, setRepoMode] = useState<'existing' | 'new'>('existing');
+    const [repoMode, setRepoMode] = useState<'existing' | 'new'>('new'); // Default to 'new' for Replit-style
     const [parentPath, setParentPath] = useState('');
     const [folderName, setFolderName] = useState('');
 
@@ -99,23 +99,19 @@ export const ProjectFormDialog = NiceModal.create<ProjectFormDialogProps>(
       e.preventDefault();
       setError('');
 
-      let finalGitRepoPath = gitRepoPath;
-      if (repoMode === 'new') {
-        const effectiveParentPath = parentPath.trim();
-        const cleanFolderName = folderName.trim();
-        finalGitRepoPath = effectiveParentPath
-          ? `${effectiveParentPath}/${cleanFolderName}`.replace(/\/+/g, '/')
-          : cleanFolderName;
+      // Replit-style: For new projects, don't send git_repo_path (empty string)
+      // Server will auto-generate from workspace_dir + project name
+      const finalName = name.trim();
+      if (!finalName) {
+        setError('Project name is required');
+        return;
       }
-      // Auto-populate name from git repo path if not provided
-      const finalName =
-        name.trim() || generateProjectNameFromPath(finalGitRepoPath);
 
-      // Creating new project
+      // Creating new project (Replit-style: no path needed)
       const createData: CreateProject = {
         name: finalName,
-        git_repo_path: finalGitRepoPath,
-        use_existing_repo: repoMode === 'existing',
+        git_repo_path: '', // Empty = server auto-generates path
+        use_existing_repo: false, // Always create new repo
         setup_script: null,
         dev_script: null,
         cleanup_script: null,
@@ -185,7 +181,7 @@ export const ProjectFormDialog = NiceModal.create<ProjectFormDialogProps>(
               {repoMode === 'new' && (
                 <Button
                   type="submit"
-                  disabled={createProject.isPending || !folderName.trim()}
+                  disabled={createProject.isPending || !name.trim()}
                   className="w-full"
                 >
                   {createProject.isPending ? 'Creating...' : 'Create Project'}
