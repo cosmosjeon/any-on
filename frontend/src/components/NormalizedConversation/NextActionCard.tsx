@@ -12,13 +12,9 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import NiceModal from '@ebay/nice-modal-react';
-import { useOpenInEditor } from '@/hooks/useOpenInEditor';
 import { useDiffSummary } from '@/hooks/useDiffSummary';
 import { useDevServer } from '@/hooks/useDevServer';
 import { Button } from '@/components/ui/button';
-import { IdeIcon } from '@/components/ide/IdeIcon';
-import { useUserSystem } from '@/components/config-provider';
-import { getIdeName } from '@/components/ide/IdeIcon';
 import { useProject } from '@/contexts/project-context';
 import { useQuery } from '@tanstack/react-query';
 import { attemptsApi } from '@/lib/api';
@@ -59,8 +55,6 @@ export function NextActionCard({
     enabled: !!attemptId && failed,
   });
   const { capabilities } = useUserSystem();
-
-  const openInEditor = useOpenInEditor(attemptId);
   const { fileCount, added, deleted, error } = useDiffSummary(
     attemptId ?? null
   );
@@ -87,9 +81,6 @@ export function NextActionCard({
     }
   }, [containerRef]);
 
-  const handleOpenInEditor = useCallback(() => {
-    openInEditor();
-  }, [openInEditor]);
 
   const handleViewLogs = useCallback(() => {
     if (attemptId) {
@@ -143,8 +134,6 @@ export function NextActionCard({
   const setupHelpText = canAutoSetup
     ? t('attempt.setupHelpText', { agent: attempt?.executor })
     : null;
-
-  const editorName = getIdeName(config?.editor?.editor_type);
 
   // Necessary to prevent this component being displayed beyond fold within Virtualised List
   if (
@@ -263,29 +252,6 @@ export function NextActionCard({
                   </TooltipContent>
                 </Tooltip>
               )}
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 w-7 p-0"
-                    onClick={handleOpenInEditor}
-                    disabled={!attemptId}
-                    aria-label={t('attempt.openInEditor', {
-                      editor: editorName,
-                    })}
-                  >
-                    <IdeIcon
-                      editorType={config?.editor?.editor_type}
-                      className="h-3.5 w-3.5"
-                    />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {t('attempt.openInEditor', { editor: editorName })}
-                </TooltipContent>
-              </Tooltip>
 
               <Tooltip>
                 <TooltipTrigger asChild>

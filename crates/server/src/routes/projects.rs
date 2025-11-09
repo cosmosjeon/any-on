@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{path::Path, path::PathBuf};
 
 use axum::{
     Extension, Json, Router,
@@ -20,8 +20,15 @@ use services::services::{
 };
 use utils::{path::expand_tilde, response::ApiResponse};
 use uuid::Uuid;
+use tokio::fs;
 
 use crate::{DeploymentImpl, error::ApiError, middleware::load_project_middleware};
+
+async fn resolve_workspace_path(deployment: &DeploymentImpl) -> Result<PathBuf, std::io::Error> {
+    let base_path = deployment.workspace_dir();
+    fs::create_dir_all(&base_path).await?;
+    Ok(base_path)
+}
 
 pub async fn get_projects(
     State(deployment): State<DeploymentImpl>,
@@ -60,8 +67,15 @@ pub async fn create_project(
     } = payload;
     tracing::debug!("Creating project '{}'", name);
 
-    // Validate and setup git repository
-    let path = std::path::absolute(expand_tilde(&git_repo_path))?;
+    // Replit-style: If git_repo_path is empty, auto-generate from workspace_dir + project name
+    let path = if git_repo_path.is_empty() || git_repo_path.trim().is_empty() {
+        // Get workspace directory (Replit-style)
+        let workspace_path = resolve_workspace_path(&deployment).await
+            .map_err(|e| ApiError::Project(ProjectError::GitRepoCheckFailed(e.to_string())))?;
+        workspace_path.join(&name)
+    } else {
+        std::path::absolute(expand_tilde(&git_repo_path))?
+    };
     // Check if git repo path is already used by another project
     match Project::find_by_git_repo_path(&deployment.db().pool, path.to_string_lossy().as_ref())
         .await
@@ -108,28 +122,27 @@ pub async fn create_project(
             ))));
         }
     } else {
-        // For new repos, create directory and initialize git
-
+        // For new repos (Replit-style), create directory and initialize git
         // Create directory if it doesn't exist
-        if !path.exists()
-            && let Err(e) = std::fs::create_dir_all(&path)
-        {
-            tracing::error!("Failed to create directory: {}", e);
-            return Ok(ResponseJson(ApiResponse::error(&format!(
-                "Failed to create directory: {}",
-                e
-            ))));
+        if !path.exists() {
+            if let Err(e) = std::fs::create_dir_all(&path) {
+                tracing::error!("Failed to create directory: {}", e);
+                return Ok(ResponseJson(ApiResponse::error(&format!(
+                    "Failed to create directory: {}",
+                    e
+                ))));
+            }
         }
 
         // Check if it's already a git repo, if not initialize it
-        if !path.join(".git").exists()
-            && let Err(e) = deployment.git().initialize_repo_with_main_branch(&path)
-        {
-            tracing::error!("Failed to initialize git repository: {}", e);
-            return Ok(ResponseJson(ApiResponse::error(&format!(
-                "Failed to initialize git repository: {}",
-                e
-            ))));
+        if !path.join(".git").exists() {
+            if let Err(e) = deployment.git().initialize_repo_with_main_branch(&path) {
+                tracing::error!("Failed to initialize git repository: {}", e);
+                return Ok(ResponseJson(ApiResponse::error(&format!(
+                    "Failed to initialize git repository: {}",
+                    e
+                ))));
+            }
         }
     }
 
@@ -254,60 +267,6 @@ pub async fn delete_project(
         }
         Err(e) => {
             tracing::error!("Failed to delete project: {}", e);
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
-}
-
-#[derive(serde::Deserialize)]
-pub struct OpenEditorRequest {
-    editor_type: Option<String>,
-}
-
-#[derive(Debug, serde::Serialize, ts_rs::TS)]
-pub struct OpenEditorResponse {
-    pub url: Option<String>,
-}
-
-pub async fn open_project_in_editor(
-    Extension(project): Extension<Project>,
-    State(deployment): State<DeploymentImpl>,
-    Json(payload): Json<Option<OpenEditorRequest>>,
-) -> Result<ResponseJson<ApiResponse<OpenEditorResponse>>, StatusCode> {
-    let path = project.git_repo_path;
-
-    let editor_config = {
-        let config = deployment.config().read().await;
-        let editor_type_str = payload.as_ref().and_then(|req| req.editor_type.as_deref());
-        config.editor.with_override(editor_type_str)
-    };
-
-    match editor_config.open_file(&path).await {
-        Ok(url) => {
-            tracing::info!(
-                "Opened editor for project {} at path: {}{}",
-                project.id,
-                path.to_string_lossy(),
-                if url.is_some() { " (remote mode)" } else { "" }
-            );
-
-            deployment
-                .track_if_analytics_allowed(
-                    "project_editor_opened",
-                    serde_json::json!({
-                        "project_id": project.id.to_string(),
-                        "editor_type": payload.as_ref().and_then(|req| req.editor_type.as_ref()),
-                        "remote_mode": url.is_some(),
-                    }),
-                )
-                .await;
-
-            Ok(ResponseJson(ApiResponse::success(OpenEditorResponse {
-                url,
-            })))
-        }
-        Err(e) => {
-            tracing::error!("Failed to open editor for project {}: {}", project.id, e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -512,7 +471,6 @@ pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
         )
         .route("/branches", get(get_project_branches))
         .route("/search", get(search_project_files))
-        .route("/open-editor", post(open_project_in_editor))
         .layer(from_fn_with_state(
             deployment.clone(),
             load_project_middleware,

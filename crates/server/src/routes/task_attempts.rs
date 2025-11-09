@@ -842,10 +842,6 @@ pub async fn create_github_pr(
                 tracing::error!("Failed to update task attempt PR status: {}", e);
             }
 
-            // Auto-open PR in browser
-            if let Err(e) = utils::browser::open_browser(&pr_info.url).await {
-                tracing::warn!("Failed to open PR in browser: {}", e);
-            }
             deployment
                 .track_if_analytics_allowed(
                     "github_pr_created",
@@ -872,76 +868,6 @@ pub async fn create_github_pr(
                     format!("Failed to create PR: {}", e).as_str(),
                 )))
             }
-        }
-    }
-}
-
-#[derive(serde::Deserialize)]
-pub struct OpenEditorRequest {
-    editor_type: Option<String>,
-    file_path: Option<String>,
-}
-
-#[derive(Debug, Serialize, TS)]
-pub struct OpenEditorResponse {
-    pub url: Option<String>,
-}
-
-pub async fn open_task_attempt_in_editor(
-    Extension(task_attempt): Extension<TaskAttempt>,
-    State(deployment): State<DeploymentImpl>,
-    Json(payload): Json<Option<OpenEditorRequest>>,
-) -> Result<ResponseJson<ApiResponse<OpenEditorResponse>>, ApiError> {
-    // Get the task attempt to access the worktree path
-    let base_path_buf = ensure_worktree_path(&deployment, &task_attempt).await?;
-    let base_path = base_path_buf.as_path();
-
-    // If a specific file path is provided, use it; otherwise use the base path
-    let path = if let Some(file_path) = payload.as_ref().and_then(|req| req.file_path.as_ref()) {
-        base_path.join(file_path)
-    } else {
-        base_path.to_path_buf()
-    };
-
-    let editor_config = {
-        let config = deployment.config().read().await;
-        let editor_type_str = payload.as_ref().and_then(|req| req.editor_type.as_deref());
-        config.editor.with_override(editor_type_str)
-    };
-
-    match editor_config.open_file(path.as_path()).await {
-        Ok(url) => {
-            tracing::info!(
-                "Opened editor for task attempt {} at path: {}{}",
-                task_attempt.id,
-                path.display(),
-                if url.is_some() { " (remote mode)" } else { "" }
-            );
-
-            deployment
-                .track_if_analytics_allowed(
-                    "task_attempt_editor_opened",
-                    serde_json::json!({
-                        "attempt_id": task_attempt.id.to_string(),
-                        "editor_type": payload.as_ref().and_then(|req| req.editor_type.as_ref()),
-                        "remote_mode": url.is_some(),
-                    }),
-                )
-                .await;
-
-            Ok(ResponseJson(ApiResponse::success(OpenEditorResponse {
-                url,
-            })))
-        }
-        Err(e) => {
-            tracing::error!(
-                "Failed to open editor for attempt {}: {}",
-                task_attempt.id,
-                e
-            );
-            Err(ApiError::TaskAttempt(TaskAttemptError::ValidationError(
-                format!("Failed to open editor: {}", e),
-            )))
         }
     }
 }
@@ -1656,7 +1582,6 @@ pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
         .route("/conflicts/abort", post(abort_conflicts_task_attempt))
         .route("/pr", post(create_github_pr))
         .route("/pr/attach", post(attach_existing_pr))
-        .route("/open-editor", post(open_task_attempt_in_editor))
         .route("/delete-file", post(delete_task_attempt_file))
         .route("/children", get(get_task_attempt_children))
         .route("/stop", post(stop_task_attempt_execution))

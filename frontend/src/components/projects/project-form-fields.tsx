@@ -530,56 +530,13 @@ const loadRecentRepos = async () => {
                 value={name}
                 onChange={(e) => {
                   setName(e.target.value);
-                  if (e.target.value) {
-                    setFolderName(
-                      e.target.value
-                        .toLowerCase()
-                        .replace(/\s+/g, '-')
-                        .replace(/[^a-z0-9-]/g, '')
-                    );
-                  }
                 }}
                 placeholder="My Awesome Project"
                 className="placeholder:text-secondary-foreground placeholder:opacity-100"
                 required
               />
               <p className="text-xs text-muted-foreground">
-                The folder name will be auto-generated from the project name
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="parent-path">Parent Directory</Label>
-              <div className="flex space-x-2">
-                <Input
-                  id="parent-path"
-                  type="text"
-                  value={parentPath}
-                  onChange={(e) => setParentPath(e.target.value)}
-                  placeholder="Current Directory"
-                  className="flex-1 placeholder:text-secondary-foreground placeholder:opacity-100"
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={async () => {
-                    const selectedPath = await showFolderPicker({
-                      title: 'Select Parent Directory',
-                      description: 'Choose where to create the new repository',
-                      value: parentPath,
-                    });
-                    if (selectedPath) {
-                      setParentPath(selectedPath);
-                    }
-                  }}
-                >
-                  <Folder className="h-4 w-4" />
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Leave empty to use your current working directory, or specify a
-                custom path.
+                The project will be created in the workspace directory automatically (Replit-style).
               </p>
             </div>
           </div>
