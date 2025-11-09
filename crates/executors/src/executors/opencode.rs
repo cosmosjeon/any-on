@@ -2,24 +2,25 @@ mod share_bridge;
 
 use std::{
     path::{Path, PathBuf},
-    process::Stdio,
     sync::Arc,
 };
 
 use async_trait::async_trait;
-use command_group::AsyncCommandGroup;
 use fork_stream::StreamExt as _;
 use futures::{StreamExt, future::ready, stream::BoxStream};
 use lazy_static::lazy_static;
 use regex::Regex;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use tokio::{io::AsyncWriteExt, process::Command};
+use tokio::io::AsyncWriteExt;
 use ts_rs::TS;
 use workspace_utils::{msg_store::MsgStore, path::make_path_relative};
 
 use crate::{
-    command::{CmdOverrides, CommandBuilder, apply_overrides},
+    command::{
+        CmdOverrides, CommandBuilder, CommandRuntime, ExecutionCommand, StdioConfig,
+        apply_overrides,
+    },
     executors::{
         AppendPrompt, ExecutorError, SpawnedChild, StandardCodingAgentExecutor,
         opencode::share_bridge::Bridge as ShareBridge,
@@ -128,32 +129,33 @@ impl Opencode {
 
 #[async_trait]
 impl StandardCodingAgentExecutor for Opencode {
-    async fn spawn(&self, current_dir: &Path, prompt: &str) -> Result<SpawnedChild, ExecutorError> {
+    async fn spawn(
+        &self,
+        current_dir: &Path,
+        prompt: &str,
+        runtime: &dyn CommandRuntime,
+    ) -> Result<SpawnedChild, ExecutorError> {
         // Start a dedicated local share bridge bound to this opencode process
         let bridge = ShareBridge::start().await.map_err(ExecutorError::Io)?;
         let command_parts = self.build_command_builder().build_initial()?;
-        let (program_path, args) = command_parts.into_resolved().await?;
+        let (program, args) = command_parts.into_owned();
 
         let combined_prompt = self.append_prompt.combine_prompt(prompt);
 
-        let mut command = Command::new(program_path);
-        command
-            .kill_on_drop(true)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped()) // Keep stdout but we won't use it
-            .stderr(Stdio::piped())
-            .current_dir(current_dir)
-            .args(&args)
-            .env("NODE_NO_WARNINGS", "1")
-            .env("OPENCODE_AUTO_SHARE", "1")
-            .env("OPENCODE_API", bridge.base_url.clone());
+        let mut exec_command = ExecutionCommand::new(program, args, current_dir.to_path_buf());
+        exec_command.kill_on_drop(true);
+        exec_command.stdin(StdioConfig::piped());
+        exec_command.stdout(StdioConfig::piped());
+        exec_command.stderr(StdioConfig::piped());
+        exec_command.env("NODE_NO_WARNINGS", "1");
+        exec_command.env("OPENCODE_AUTO_SHARE", "1");
+        exec_command.env("OPENCODE_API", bridge.base_url.clone());
 
-        let mut child = match command.group_spawn() {
+        let mut child = match runtime.spawn(exec_command).await {
             Ok(c) => c,
             Err(e) => {
-                // If opencode fails to start, shut down the bridge to free the port
                 bridge.shutdown().await;
-                return Err(ExecutorError::SpawnError(e));
+                return Err(e);
             }
         };
 
@@ -192,33 +194,31 @@ impl StandardCodingAgentExecutor for Opencode {
         current_dir: &Path,
         prompt: &str,
         session_id: &str,
+        runtime: &dyn CommandRuntime,
     ) -> Result<SpawnedChild, ExecutorError> {
         // Start a dedicated local share bridge bound to this opencode process
         let bridge = ShareBridge::start().await.map_err(ExecutorError::Io)?;
         let command_parts = self
             .build_command_builder()
             .build_follow_up(&["--session".to_string(), session_id.to_string()])?;
-        let (program_path, args) = command_parts.into_resolved().await?;
+        let (program, args) = command_parts.into_owned();
 
         let combined_prompt = self.append_prompt.combine_prompt(prompt);
 
-        let mut command = Command::new(program_path);
-        command
-            .kill_on_drop(true)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped()) // Keep stdout but we won't use it
-            .stderr(Stdio::piped())
-            .current_dir(current_dir)
-            .args(&args)
-            .env("NODE_NO_WARNINGS", "1")
-            .env("OPENCODE_AUTO_SHARE", "1")
-            .env("OPENCODE_API", bridge.base_url.clone());
+        let mut exec_command = ExecutionCommand::new(program, args, current_dir.to_path_buf());
+        exec_command.kill_on_drop(true);
+        exec_command.stdin(StdioConfig::piped());
+        exec_command.stdout(StdioConfig::piped());
+        exec_command.stderr(StdioConfig::piped());
+        exec_command.env("NODE_NO_WARNINGS", "1");
+        exec_command.env("OPENCODE_AUTO_SHARE", "1");
+        exec_command.env("OPENCODE_API", bridge.base_url.clone());
 
-        let mut child = match command.group_spawn() {
+        let mut child = match runtime.spawn(exec_command).await {
             Ok(c) => c,
             Err(e) => {
                 bridge.shutdown().await;
-                return Err(ExecutorError::SpawnError(e));
+                return Err(e);
             }
         };
 

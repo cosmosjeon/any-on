@@ -28,6 +28,7 @@ use deployment::DeploymentError;
 use executors::{
     actions::{Executable, ExecutorAction},
     approvals::{ExecutorApprovalService, NoopExecutorApprovalService},
+    command::CommandRuntime,
     executors::BaseCodingAgent,
     logs::{
         NormalizedEntryType,
@@ -792,11 +793,12 @@ impl ContainerService for LocalContainerService {
         }
     }
 
-    async fn start_execution_inner(
+    async fn start_execution_with_runtime(
         &self,
         task_attempt: &TaskAttempt,
         execution_process: &ExecutionProcess,
         executor_action: &ExecutorAction,
+        runtime: &dyn CommandRuntime,
     ) -> Result<(), ContainerError> {
         // Get the worktree path
         let container_ref = task_attempt
@@ -821,7 +823,7 @@ impl ContainerService for LocalContainerService {
 
         // Create the child and stream, add to execution tracker
         let mut spawned = executor_action
-            .spawn(&current_dir, approvals_service)
+            .spawn(&current_dir, approvals_service, runtime)
             .await?;
 
         self.track_child_msgs_in_store(execution_process.id, &mut spawned.child)

@@ -1,19 +1,16 @@
 use std::{
     path::{Path, PathBuf},
-    process::Stdio,
     sync::Arc,
     time::Duration,
 };
 
 use async_trait::async_trait;
-use command_group::AsyncCommandGroup;
 use futures::StreamExt;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio::{
     fs,
     io::AsyncWriteExt,
-    process::Command,
     time::{interval, timeout},
 };
 use ts_rs::TS;
@@ -21,7 +18,10 @@ use uuid::Uuid;
 use workspace_utils::{msg_store::MsgStore, path::get_anyon_temp_dir};
 
 use crate::{
-    command::{CmdOverrides, CommandBuilder, apply_overrides},
+    command::{
+        CmdOverrides, CommandBuilder, CommandRuntime, ExecutionCommand,
+        StdioConfig, apply_overrides,
+    },
     executors::{AppendPrompt, ExecutorError, SpawnedChild, StandardCodingAgentExecutor},
     logs::{
         NormalizedEntry, NormalizedEntryType, plain_text_processor::PlainTextLogProcessor,
@@ -94,26 +94,28 @@ impl Copilot {
 
 #[async_trait]
 impl StandardCodingAgentExecutor for Copilot {
-    async fn spawn(&self, current_dir: &Path, prompt: &str) -> Result<SpawnedChild, ExecutorError> {
+    async fn spawn(
+        &self,
+        current_dir: &Path,
+        prompt: &str,
+        runtime: &dyn CommandRuntime,
+    ) -> Result<SpawnedChild, ExecutorError> {
         let log_dir = Self::create_temp_log_dir(current_dir).await?;
         let command_parts = self
             .build_command_builder(&log_dir.to_string_lossy())
             .build_initial()?;
-        let (program_path, args) = command_parts.into_resolved().await?;
+        let (program, args) = command_parts.into_owned();
 
         let combined_prompt = self.append_prompt.combine_prompt(prompt);
 
-        let mut command = Command::new(program_path);
-        command
-            .kill_on_drop(true)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .current_dir(current_dir)
-            .args(&args)
-            .env("NODE_NO_WARNINGS", "1");
+        let mut exec_command = ExecutionCommand::new(program, args, current_dir.to_path_buf());
+        exec_command.kill_on_drop(true);
+        exec_command.stdin(StdioConfig::piped());
+        exec_command.stdout(StdioConfig::piped());
+        exec_command.stderr(StdioConfig::piped());
+        exec_command.env("NODE_NO_WARNINGS", "1");
 
-        let mut child = command.group_spawn()?;
+        let mut child = runtime.spawn(exec_command).await?;
 
         // Write prompt to stdin
         if let Some(mut stdin) = child.inner().stdin.take() {
@@ -132,27 +134,24 @@ impl StandardCodingAgentExecutor for Copilot {
         current_dir: &Path,
         prompt: &str,
         session_id: &str,
+        runtime: &dyn CommandRuntime,
     ) -> Result<SpawnedChild, ExecutorError> {
         let log_dir = Self::create_temp_log_dir(current_dir).await?;
         let command_parts = self
             .build_command_builder(&log_dir.to_string_lossy())
             .build_follow_up(&["--resume".to_string(), session_id.to_string()])?;
-        let (program_path, args) = command_parts.into_resolved().await?;
+        let (program, args) = command_parts.into_owned();
 
         let combined_prompt = self.append_prompt.combine_prompt(prompt);
 
-        let mut command = Command::new(program_path);
+        let mut exec_command = ExecutionCommand::new(program, args, current_dir.to_path_buf());
+        exec_command.kill_on_drop(true);
+        exec_command.stdin(StdioConfig::piped());
+        exec_command.stdout(StdioConfig::piped());
+        exec_command.stderr(StdioConfig::piped());
+        exec_command.env("NODE_NO_WARNINGS", "1");
 
-        command
-            .kill_on_drop(true)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .current_dir(current_dir)
-            .args(&args)
-            .env("NODE_NO_WARNINGS", "1");
-
-        let mut child = command.group_spawn()?;
+        let mut child = runtime.spawn(exec_command).await?;
 
         // Write comprehensive prompt to stdin
         if let Some(mut stdin) = child.inner().stdin.take() {
