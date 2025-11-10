@@ -105,6 +105,13 @@ if [[ -d src/crates ]]; then
     if [[ -d ../assets ]]; then
         ln -sf ../assets crates/utils/../../assets || true
     fi
+    # frontend/dist 폴더가 상위 디렉터리에 있으면 복사 (빌드 시 필요)
+    if [[ -d ../frontend/dist ]]; then
+        # src 디렉토리 기준으로 ../../frontend/dist를 찾을 수 있도록 복사
+        rm -rf frontend/dist 2>/dev/null || true
+        cp -r ../frontend/dist frontend/ || true
+        echo "✅ Copied frontend/dist for build"
+    fi
     # SQLx offline 모드를 위해 데이터베이스 준비
     echo "📦 Preparing SQLx queries..."
     # .sqlx 폴더가 이미 있으면 사용 (로컬에서 준비된 경우)

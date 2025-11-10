@@ -7,6 +7,7 @@ const net = require("net");
 const PORTS_FILE = path.join(__dirname, "..", ".dev-ports.json");
 const DEV_ASSETS_SEED = path.join(__dirname, "..", "dev_assets_seed");
 const DEV_ASSETS = path.join(__dirname, "..", "dev_assets");
+const SECRET_KEY_FILE = path.join(DEV_ASSETS, ".secret_key");
 
 /**
  * Check if a port is available
@@ -167,8 +168,33 @@ function copyDevAssets() {
         console.log("Copied dev_assets_seed to dev_assets");
       }
     }
+    // Ensure dev_assets directory exists
+    if (!fs.existsSync(DEV_ASSETS)) {
+      fs.mkdirSync(DEV_ASSETS, { recursive: true });
+    }
+    // Generate secret key if it doesn't exist
+    generateSecretKey();
   } catch (error) {
     console.error("Failed to copy dev assets:", error.message);
+  }
+}
+
+/**
+ * Generate ANYON_SECRET_KEY for development
+ */
+function generateSecretKey() {
+  try {
+    if (!fs.existsSync(SECRET_KEY_FILE)) {
+      const crypto = require("crypto");
+      const secretKey = crypto.randomBytes(32).toString("base64");
+      fs.writeFileSync(SECRET_KEY_FILE, secretKey, { mode: 0o600 });
+      
+      if (process.argv[2] === "get") {
+        console.log("Generated ANYON_SECRET_KEY for development");
+      }
+    }
+  } catch (error) {
+    console.error("Failed to generate secret key:", error.message);
   }
 }
 
