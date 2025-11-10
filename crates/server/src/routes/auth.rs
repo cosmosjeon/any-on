@@ -10,6 +10,14 @@ use axum::{
 use deployment::{Deployment, DeploymentError};
 use octocrab::auth::Continue;
 use serde::{Deserialize, Serialize};
+use db::models::{
+    draft::Draft,
+    image::Image,
+    project::Project,
+    tag::Tag,
+    task::Task,
+    task_attempt::TaskAttempt,
+};
 use services::services::{
     auth::{AuthError, DeviceFlowStartResponse},
     config::save_config_to_file,
@@ -123,6 +131,159 @@ async fn device_poll(
         config.github_login_acknowledged = true; // Also acknowledge the GitHub login step
         save_config_to_file(&config.clone(), &config_path).await?;
     }
+
+    // Claim orphaned data for first-time login
+    // Get GitHub user ID and claim all data with user_id IS NULL
+    {
+        let gh = GitHubService::new(&user_info.token)?;
+        match deployment
+            .github_user_cache()
+            .get_or_fetch(&user_info.token, &gh)
+            .await
+        {
+            Ok(github_user) => {
+                let user_id = format!("github_{}", github_user.id);
+                tracing::info!("Claiming orphaned data for user: {}", user_id);
+
+                // Claim projects
+                match Project::claim_orphaned(&deployment.db().pool, &user_id).await {
+                    Ok(count) if count > 0 => {
+                        tracing::info!("Claimed {} orphaned projects", count);
+                        deployment
+                            .track_if_analytics_allowed(
+                                "orphaned_data_claimed",
+                                serde_json::json!({
+                                    "type": "projects",
+                                    "count": count,
+                                }),
+                            )
+                            .await;
+                    }
+                    Ok(_) => {
+                        tracing::debug!("No orphaned projects to claim");
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to claim orphaned projects: {}", e);
+                    }
+                }
+
+                // Claim tasks
+                match Task::claim_orphaned(&deployment.db().pool, &user_id).await {
+                    Ok(count) if count > 0 => {
+                        tracing::info!("Claimed {} orphaned tasks", count);
+                        deployment
+                            .track_if_analytics_allowed(
+                                "orphaned_data_claimed",
+                                serde_json::json!({
+                                    "type": "tasks",
+                                    "count": count,
+                                }),
+                            )
+                            .await;
+                    }
+                    Ok(_) => {
+                        tracing::debug!("No orphaned tasks to claim");
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to claim orphaned tasks: {}", e);
+                    }
+                }
+
+                // Claim task attempts
+                match TaskAttempt::claim_orphaned(&deployment.db().pool, &user_id).await {
+                    Ok(count) if count > 0 => {
+                        tracing::info!("Claimed {} orphaned task attempts", count);
+                        deployment
+                            .track_if_analytics_allowed(
+                                "orphaned_data_claimed",
+                                serde_json::json!({
+                                    "type": "task_attempts",
+                                    "count": count,
+                                }),
+                            )
+                            .await;
+                    }
+                    Ok(_) => {
+                        tracing::debug!("No orphaned task attempts to claim");
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to claim orphaned task attempts: {}", e);
+                    }
+                }
+
+                // Claim tags
+                match Tag::claim_orphaned(&deployment.db().pool, &user_id).await {
+                    Ok(count) if count > 0 => {
+                        tracing::info!("Claimed {} orphaned tags", count);
+                        deployment
+                            .track_if_analytics_allowed(
+                                "orphaned_data_claimed",
+                                serde_json::json!({
+                                    "type": "tags",
+                                    "count": count,
+                                }),
+                            )
+                            .await;
+                    }
+                    Ok(_) => {
+                        tracing::debug!("No orphaned tags to claim");
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to claim orphaned tags: {}", e);
+                    }
+                }
+
+                // Claim images
+                match Image::claim_orphaned(&deployment.db().pool, &user_id).await {
+                    Ok(count) if count > 0 => {
+                        tracing::info!("Claimed {} orphaned images", count);
+                        deployment
+                            .track_if_analytics_allowed(
+                                "orphaned_data_claimed",
+                                serde_json::json!({
+                                    "type": "images",
+                                    "count": count,
+                                }),
+                            )
+                            .await;
+                    }
+                    Ok(_) => {
+                        tracing::debug!("No orphaned images to claim");
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to claim orphaned images: {}", e);
+                    }
+                }
+
+                // Claim drafts
+                match Draft::claim_orphaned(&deployment.db().pool, &user_id).await {
+                    Ok(count) if count > 0 => {
+                        tracing::info!("Claimed {} orphaned drafts", count);
+                        deployment
+                            .track_if_analytics_allowed(
+                                "orphaned_data_claimed",
+                                serde_json::json!({
+                                    "type": "drafts",
+                                    "count": count,
+                                }),
+                            )
+                            .await;
+                    }
+                    Ok(_) => {
+                        tracing::debug!("No orphaned drafts to claim");
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to claim orphaned drafts: {}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                // Log error but don't fail the entire login process
+                tracing::error!("Failed to fetch GitHub user for orphaned data claim: {}", e);
+            }
+        }
+    }
+
     let _ = deployment.update_sentry_scope().await;
     let props = serde_json::json!({
         "username": user_info.username,

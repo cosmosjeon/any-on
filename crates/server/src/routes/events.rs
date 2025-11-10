@@ -1,6 +1,7 @@
 use axum::{
     BoxError, Router,
     extract::State,
+    middleware::from_fn_with_state,
     response::{
         Sse,
         sse::{Event, KeepAlive},
@@ -10,7 +11,7 @@ use axum::{
 use deployment::Deployment;
 use futures_util::TryStreamExt;
 
-use crate::DeploymentImpl;
+use crate::{DeploymentImpl, middleware::auth::require_auth};
 
 pub async fn events(
     State(deployment): State<DeploymentImpl>,
@@ -21,8 +22,10 @@ pub async fn events(
     Ok(Sse::new(stream.map_err(|e| -> BoxError { e.into() })).keep_alive(KeepAlive::default()))
 }
 
-pub fn router(_: &DeploymentImpl) -> Router<DeploymentImpl> {
-    let events_router = Router::new().route("/", get(events));
+pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
+    let events_router = Router::new()
+        .route("/", get(events))
+        .layer(from_fn_with_state(deployment.clone(), require_auth));
 
     Router::new().nest("/events", events_router)
 }

@@ -137,6 +137,10 @@ impl Deployment for CloudDeployment {
     fn claude_auth(&self) -> &ClaudeAuthManager {
         self.inner.claude_auth()
     }
+
+    fn github_user_cache(&self) -> &services::services::github_user_cache::GitHubUserCache {
+        self.inner.github_user_cache()
+    }
 }
 
 impl CloudDeployment {

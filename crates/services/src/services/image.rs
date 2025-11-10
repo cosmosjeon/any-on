@@ -52,6 +52,7 @@ impl ImageService {
         &self,
         data: &[u8],
         original_filename: &str,
+        user_id: &str,
     ) -> Result<Image, ImageError> {
         let file_size = data.len() as u64;
 
@@ -101,6 +102,7 @@ impl ImageService {
                 size_bytes: file_size as i64,
                 hash,
             },
+            user_id,
         )
         .await?;
         Ok(image)
@@ -121,7 +123,7 @@ impl ImageService {
         let mut failed_count = 0;
 
         for image in orphaned_images {
-            match self.delete_image(image.id).await {
+            match self.delete_image_internal(&image).await {
                 Ok(_) => {
                     deleted_count += 1;
                     tracing::debug!("Deleted orphaned image: {}", image.id);
@@ -150,15 +152,30 @@ impl ImageService {
         Ok(Image::find_by_id(&self.pool, id).await?)
     }
 
-    pub async fn delete_image(&self, id: Uuid) -> Result<(), ImageError> {
-        if let Some(image) = Image::find_by_id(&self.pool, id).await? {
+    pub async fn delete_image(&self, id: Uuid, user_id: &str) -> Result<(), ImageError> {
+        if let Some(image) = Image::find_by_id_for_user(&self.pool, id, user_id).await? {
             let file_path = self.cache_dir.join(&image.file_path);
             if file_path.exists() {
                 fs::remove_file(file_path)?;
             }
 
-            Image::delete(&self.pool, id).await?;
+            Image::delete(&self.pool, id, user_id).await?;
         }
+
+        Ok(())
+    }
+
+    /// Internal method to delete an image without user validation (for cleanup tasks)
+    async fn delete_image_internal(&self, image: &Image) -> Result<(), ImageError> {
+        let file_path = self.cache_dir.join(&image.file_path);
+        if file_path.exists() {
+            fs::remove_file(file_path)?;
+        }
+
+        // Direct DB deletion without user validation (for orphaned images)
+        sqlx::query!("DELETE FROM images WHERE id = $1", image.id)
+            .execute(&self.pool)
+            .await?;
 
         Ok(())
     }

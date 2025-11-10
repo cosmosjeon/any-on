@@ -40,19 +40,23 @@ pub struct CreateTaskImage {
 }
 
 impl Image {
-    pub async fn create(pool: &SqlitePool, data: &CreateImage) -> Result<Self, sqlx::Error> {
+    pub async fn create(
+        pool: &SqlitePool,
+        data: &CreateImage,
+        user_id: &str,
+    ) -> Result<Self, sqlx::Error> {
         let id = Uuid::new_v4();
         sqlx::query_as!(
             Image,
-            r#"INSERT INTO images (id, file_path, original_name, mime_type, size_bytes, hash)
-               VALUES ($1, $2, $3, $4, $5, $6)
-               RETURNING id as "id!: Uuid", 
-                         file_path as "file_path!", 
-                         original_name as "original_name!", 
+            r#"INSERT INTO images (id, file_path, original_name, mime_type, size_bytes, hash, user_id)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)
+               RETURNING id as "id!: Uuid",
+                         file_path as "file_path!",
+                         original_name as "original_name!",
                          mime_type,
                          size_bytes as "size_bytes!",
                          hash as "hash!",
-                         created_at as "created_at!: DateTime<Utc>", 
+                         created_at as "created_at!: DateTime<Utc>",
                          updated_at as "updated_at!: DateTime<Utc>""#,
             id,
             data.file_path,
@@ -60,8 +64,53 @@ impl Image {
             data.mime_type,
             data.size_bytes,
             data.hash,
+            user_id
         )
         .fetch_one(pool)
+        .await
+    }
+
+    pub async fn find_by_user(pool: &SqlitePool, user_id: &str) -> Result<Vec<Self>, sqlx::Error> {
+        sqlx::query_as!(
+            Image,
+            r#"SELECT id as "id!: Uuid",
+                      file_path as "file_path!",
+                      original_name as "original_name!",
+                      mime_type,
+                      size_bytes as "size_bytes!",
+                      hash as "hash!",
+                      created_at as "created_at!: DateTime<Utc>",
+                      updated_at as "updated_at!: DateTime<Utc>"
+               FROM images
+               WHERE user_id = $1
+               ORDER BY created_at DESC"#,
+            user_id
+        )
+        .fetch_all(pool)
+        .await
+    }
+
+    pub async fn find_by_id_for_user(
+        pool: &SqlitePool,
+        id: Uuid,
+        user_id: &str,
+    ) -> Result<Option<Self>, sqlx::Error> {
+        sqlx::query_as!(
+            Image,
+            r#"SELECT id as "id!: Uuid",
+                      file_path as "file_path!",
+                      original_name as "original_name!",
+                      mime_type,
+                      size_bytes as "size_bytes!",
+                      hash as "hash!",
+                      created_at as "created_at!: DateTime<Utc>",
+                      updated_at as "updated_at!: DateTime<Utc>"
+               FROM images
+               WHERE id = $1 AND user_id = $2"#,
+            id,
+            user_id
+        )
+        .fetch_optional(pool)
         .await
     }
 
@@ -127,11 +176,34 @@ impl Image {
         .await
     }
 
-    pub async fn delete(pool: &SqlitePool, id: Uuid) -> Result<(), sqlx::Error> {
-        sqlx::query!(r#"DELETE FROM images WHERE id = $1"#, id)
-            .execute(pool)
-            .await?;
+    pub async fn delete(
+        pool: &SqlitePool,
+        id: Uuid,
+        user_id: &str,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query!(
+            r#"DELETE FROM images WHERE id = $1 AND user_id = $2"#,
+            id,
+            user_id
+        )
+        .execute(pool)
+        .await?;
         Ok(())
+    }
+
+    pub async fn claim_orphaned(pool: &SqlitePool, user_id: &str) -> Result<u64, sqlx::Error> {
+        let result = sqlx::query!(
+            r#"
+                UPDATE images
+                SET user_id = $1
+                WHERE user_id IS NULL
+            "#,
+            user_id
+        )
+        .execute(pool)
+        .await?;
+
+        Ok(result.rows_affected())
     }
 
     pub async fn find_orphaned_images(pool: &SqlitePool) -> Result<Vec<Self>, sqlx::Error> {

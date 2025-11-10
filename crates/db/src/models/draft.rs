@@ -160,6 +160,44 @@ impl Draft {
         .map(|opt| opt.map(Draft::from))
     }
 
+    /// Find draft with user ownership validation (via task_attempts JOIN)
+    pub async fn find_by_task_attempt_and_type_for_user(
+        pool: &SqlitePool,
+        task_attempt_id: Uuid,
+        draft_type: DraftType,
+        user_id: &str,
+    ) -> Result<Option<Self>, sqlx::Error> {
+        let draft_type_str = draft_type.as_str();
+        sqlx::query_as!(
+            DraftRow,
+            r#"SELECT
+                d.id                       as "id!: Uuid",
+                d.task_attempt_id          as "task_attempt_id!: Uuid",
+                d.draft_type,
+                d.retry_process_id         as "retry_process_id?: Uuid",
+                d.prompt,
+                d.queued                   as "queued!: bool",
+                d.sending                  as "sending!: bool",
+                d.variant,
+                d.image_ids,
+                d.created_at               as "created_at!: DateTime<Utc>",
+                d.updated_at               as "updated_at!: DateTime<Utc>",
+                d.version                  as "version!: i64"
+              FROM drafts d
+              JOIN task_attempts ta ON d.task_attempt_id = ta.id
+              JOIN tasks t ON ta.task_id = t.id
+             WHERE d.task_attempt_id = $1
+               AND d.draft_type = $2
+               AND t.user_id = $3"#,
+            task_attempt_id,
+            draft_type_str,
+            user_id
+        )
+        .fetch_optional(pool)
+        .await
+        .map(|opt| opt.map(Draft::from))
+    }
+
     pub async fn upsert(pool: &SqlitePool, data: &UpsertDraft) -> Result<Self, sqlx::Error> {
         // Validate retry_process_id requirement
         if data.draft_type == DraftType::Retry && data.retry_process_id.is_none() {
@@ -360,6 +398,26 @@ impl Draft {
         .bind(draft_type.as_str())
         .bind(expected_queued.map(|value| value as i64))
         .bind(expected_version)
+        .execute(pool)
+        .await?;
+
+        Ok(result.rows_affected())
+    }
+
+    /// Claim orphaned drafts (where user_id is NULL) and assign them to the given user.
+    /// Only claims drafts whose parent task_attempts belong to the user.
+    pub async fn claim_orphaned(pool: &SqlitePool, user_id: &str) -> Result<u64, sqlx::Error> {
+        let result = sqlx::query(
+            r#"UPDATE drafts
+                  SET user_id = ?1
+                WHERE user_id IS NULL
+                  AND task_attempt_id IN (
+                      SELECT ta.id FROM task_attempts ta
+                      JOIN tasks t ON ta.task_id = t.id
+                      WHERE t.user_id = ?1
+                  )"#,
+        )
+        .bind(user_id)
         .execute(pool)
         .await?;
 

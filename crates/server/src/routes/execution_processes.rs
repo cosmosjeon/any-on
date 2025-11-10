@@ -19,7 +19,10 @@ use services::services::container::ContainerService;
 use utils::{log_msg::LogMsg, response::ApiResponse};
 use uuid::Uuid;
 
-use crate::{DeploymentImpl, error::ApiError, middleware::load_execution_process_middleware};
+use crate::{
+    DeploymentImpl, error::ApiError, middleware::auth::require_auth,
+    middleware::load_execution_process_middleware,
+};
 
 #[derive(Debug, Deserialize)]
 pub struct ExecutionProcessQuery {
@@ -261,7 +264,8 @@ pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
     let task_attempts_router = Router::new()
         .route("/", get(get_execution_processes))
         .route("/stream/ws", get(stream_execution_processes_ws))
-        .nest("/{id}", task_attempt_id_router);
+        .nest("/{id}", task_attempt_id_router)
+        .layer(from_fn_with_state(deployment.clone(), require_auth));
 
     Router::new().nest("/execution-processes", task_attempts_router)
 }

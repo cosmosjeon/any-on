@@ -1,8 +1,9 @@
 use axum::{
-    Router,
+    Extension, Router,
     body::Body,
     extract::{DefaultBodyLimit, Multipart, Path, State},
     http::{StatusCode, header},
+    middleware::from_fn_with_state,
     response::{Json as ResponseJson, Response},
     routing::{delete, get, post},
 };
@@ -21,7 +22,11 @@ use ts_rs::TS;
 use utils::response::ApiResponse;
 use uuid::Uuid;
 
-use crate::{DeploymentImpl, error::ApiError};
+use crate::{
+    DeploymentImpl, error::ApiError,
+    auth::AuthenticatedUser,
+    middleware::auth::require_auth,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 pub struct ImageResponse {
@@ -54,9 +59,10 @@ impl ImageResponse {
 
 pub async fn upload_image(
     State(deployment): State<DeploymentImpl>,
+    Extension(user): Extension<AuthenticatedUser>,
     multipart: Multipart,
 ) -> Result<ResponseJson<ApiResponse<ImageResponse>>, ApiError> {
-    let image_response = process_image_upload(&deployment, multipart, None).await?;
+    let image_response = process_image_upload(&deployment, multipart, None, &user.user_id).await?;
     Ok(ResponseJson(ApiResponse::success(image_response)))
 }
 
@@ -64,6 +70,7 @@ pub(crate) async fn process_image_upload(
     deployment: &DeploymentImpl,
     mut multipart: Multipart,
     link_task_id: Option<Uuid>,
+    user_id: &str,
 ) -> Result<ImageResponse, ApiError> {
     let image_service = deployment.image();
 
@@ -75,7 +82,7 @@ pub(crate) async fn process_image_upload(
                 .unwrap_or_else(|| "image.png".to_string());
 
             let data = field.bytes().await?;
-            let image = image_service.store_image(&data, &filename).await?;
+            let image = image_service.store_image(&data, &filename, user_id).await?;
 
             if let Some(task_id) = link_task_id {
                 TaskImage::associate_many_dedup(
@@ -108,13 +115,14 @@ pub(crate) async fn process_image_upload(
 pub async fn upload_task_image(
     Path(task_id): Path<Uuid>,
     State(deployment): State<DeploymentImpl>,
+    Extension(user): Extension<AuthenticatedUser>,
     multipart: Multipart,
 ) -> Result<ResponseJson<ApiResponse<ImageResponse>>, ApiError> {
     Task::find_by_id(&deployment.db().pool, task_id)
         .await?
         .ok_or(ApiError::Database(SqlxError::RowNotFound))?;
 
-    let image_response = process_image_upload(&deployment, multipart, Some(task_id)).await?;
+    let image_response = process_image_upload(&deployment, multipart, Some(task_id), &user.user_id).await?;
     Ok(ResponseJson(ApiResponse::success(image_response)))
 }
 
@@ -155,9 +163,10 @@ pub async fn serve_image(
 pub async fn delete_image(
     Path(image_id): Path<Uuid>,
     State(deployment): State<DeploymentImpl>,
+    Extension(user): Extension<AuthenticatedUser>,
 ) -> Result<ResponseJson<ApiResponse<()>>, ApiError> {
     let image_service = deployment.image();
-    image_service.delete_image(image_id).await?;
+    image_service.delete_image(image_id, &user.user_id).await?;
     Ok(ResponseJson(ApiResponse::success(())))
 }
 
@@ -170,7 +179,7 @@ pub async fn get_task_images(
     Ok(ResponseJson(ApiResponse::success(image_responses)))
 }
 
-pub fn routes() -> Router<DeploymentImpl> {
+pub fn routes(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
     Router::new()
         .route(
             "/upload",
@@ -183,4 +192,5 @@ pub fn routes() -> Router<DeploymentImpl> {
             "/task/{task_id}/upload",
             post(upload_task_image).layer(DefaultBodyLimit::max(20 * 1024 * 1024)),
         )
+        .layer(from_fn_with_state(deployment.clone(), require_auth))
 }

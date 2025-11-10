@@ -37,10 +37,10 @@ pub fn router(deployment: DeploymentImpl) -> IntoMakeService<Router> {
         .merge(execution_processes::router(&deployment))
         .merge(tags::router(&deployment))
         .merge(auth::router(&deployment))
-        .merge(filesystem::router())
+        .merge(filesystem::router(&deployment))
         .merge(events::router(&deployment))
-        .merge(approvals::router())
-        .nest("/images", images::routes())
+        .merge(approvals::router(&deployment))
+        .nest("/images", images::routes(&deployment))
         .layer(from_fn_with_state(
             deployment.clone(),
             auth::sentry_user_context_middleware,

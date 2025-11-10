@@ -18,6 +18,7 @@ use services::services::{
     file_search_cache::FileSearchCache,
     filesystem::FilesystemService,
     git::GitService,
+    github_user_cache::GitHubUserCache,
     image::ImageService,
     secret_store::{SECRET_GITHUB_OAUTH, SECRET_GITHUB_PAT, SecretStore},
 };
@@ -47,6 +48,7 @@ pub struct LocalDeployment {
     drafts: DraftsService,
     secret_store: SecretStore,
     claude_auth: ClaudeAuthManager,
+    github_user_cache: GitHubUserCache,
 }
 
 #[async_trait]
@@ -139,6 +141,7 @@ impl Deployment for LocalDeployment {
         let events = EventService::new(db.clone(), events_msg_store, events_entry_count);
         let drafts = DraftsService::new(db.clone(), image.clone());
         let file_search_cache = Arc::new(FileSearchCache::new());
+        let github_user_cache = GitHubUserCache::new();
 
         Ok(Self {
             config,
@@ -157,6 +160,7 @@ impl Deployment for LocalDeployment {
             drafts,
             secret_store,
             claude_auth,
+            github_user_cache,
         })
     }
 
@@ -225,6 +229,10 @@ impl Deployment for LocalDeployment {
 
     fn claude_auth(&self) -> &ClaudeAuthManager {
         &self.claude_auth
+    }
+
+    fn github_user_cache(&self) -> &GitHubUserCache {
+        &self.github_user_cache
     }
 }
 

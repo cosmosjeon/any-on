@@ -115,6 +115,9 @@ pub trait Deployment: Clone + Send + Sync + 'static {
 
     fn claude_auth(&self) -> &ClaudeAuthManager;
 
+    /// GitHub user cache for reducing GitHub API calls
+    fn github_user_cache(&self) -> &services::services::github_user_cache::GitHubUserCache;
+
     async fn github_token(&self) -> Result<Option<String>, SecretStoreError> {
         if let Some(pat) = self
             .secret_store()

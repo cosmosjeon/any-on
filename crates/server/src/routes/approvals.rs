@@ -2,12 +2,13 @@ use axum::{
     Json, Router,
     extract::{Path, State},
     http::StatusCode,
+    middleware::from_fn_with_state,
     routing::post,
 };
 use deployment::Deployment;
 use utils::approvals::{ApprovalResponse, ApprovalStatus};
 
-use crate::DeploymentImpl;
+use crate::{DeploymentImpl, middleware::auth::require_auth};
 
 pub async fn respond_to_approval(
     State(deployment): State<DeploymentImpl>,
@@ -39,6 +40,8 @@ pub async fn respond_to_approval(
     }
 }
 
-pub fn router() -> Router<DeploymentImpl> {
-    Router::new().route("/approvals/{id}/respond", post(respond_to_approval))
+pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
+    Router::new()
+        .route("/approvals/{id}/respond", post(respond_to_approval))
+        .layer(from_fn_with_state(deployment.clone(), require_auth))
 }

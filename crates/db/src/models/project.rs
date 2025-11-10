@@ -281,4 +281,21 @@ impl Project {
 
         Ok(result.count > 0)
     }
+
+    /// Claim all orphaned projects (user_id IS NULL) for the given user
+    /// Returns the number of projects claimed
+    pub async fn claim_orphaned(pool: &SqlitePool, user_id: &str) -> Result<u64, sqlx::Error> {
+        let result = sqlx::query!(
+            r#"
+                UPDATE projects
+                SET user_id = $1
+                WHERE user_id IS NULL
+            "#,
+            user_id
+        )
+        .execute(pool)
+        .await?;
+
+        Ok(result.rows_affected())
+    }
 }

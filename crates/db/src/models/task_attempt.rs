@@ -91,6 +91,63 @@ impl TaskAttempt {
         Task::find_by_id(pool, self.task_id).await
     }
 
+    /// Find all task attempts for a specific user (via tasks table JOIN)
+    pub async fn find_by_user(
+        pool: &SqlitePool,
+        user_id: &str,
+    ) -> Result<Vec<Self>, TaskAttemptError> {
+        sqlx::query_as!(
+            TaskAttempt,
+            r#"SELECT ta.id AS "id!: Uuid",
+                      ta.task_id AS "task_id!: Uuid",
+                      ta.container_ref,
+                      ta.branch,
+                      ta.target_branch,
+                      ta.executor AS "executor!",
+                      ta.worktree_deleted AS "worktree_deleted!: bool",
+                      ta.setup_completed_at AS "setup_completed_at: DateTime<Utc>",
+                      ta.created_at AS "created_at!: DateTime<Utc>",
+                      ta.updated_at AS "updated_at!: DateTime<Utc>"
+               FROM task_attempts ta
+               JOIN tasks t ON ta.task_id = t.id
+               WHERE t.user_id = $1
+               ORDER BY ta.created_at DESC"#,
+            user_id
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(TaskAttemptError::Database)
+    }
+
+    /// Find task attempt by ID with user ownership validation
+    pub async fn find_by_id_for_user(
+        pool: &SqlitePool,
+        id: Uuid,
+        user_id: &str,
+    ) -> Result<Option<Self>, TaskAttemptError> {
+        sqlx::query_as!(
+            TaskAttempt,
+            r#"SELECT ta.id AS "id!: Uuid",
+                      ta.task_id AS "task_id!: Uuid",
+                      ta.container_ref,
+                      ta.branch,
+                      ta.target_branch,
+                      ta.executor AS "executor!",
+                      ta.worktree_deleted AS "worktree_deleted!: bool",
+                      ta.setup_completed_at AS "setup_completed_at: DateTime<Utc>",
+                      ta.created_at AS "created_at!: DateTime<Utc>",
+                      ta.updated_at AS "updated_at!: DateTime<Utc>"
+               FROM task_attempts ta
+               JOIN tasks t ON ta.task_id = t.id
+               WHERE ta.id = $1 AND t.user_id = $2"#,
+            id,
+            user_id
+        )
+        .fetch_optional(pool)
+        .await
+        .map_err(TaskAttemptError::Database)
+    }
+
     /// Fetch all task attempts, optionally filtered by task_id. Newest first.
     pub async fn fetch_all(
         pool: &SqlitePool,
@@ -367,16 +424,18 @@ impl TaskAttempt {
         data: &CreateTaskAttempt,
         id: Uuid,
         task_id: Uuid,
+        user_id: &str,
     ) -> Result<Self, TaskAttemptError> {
         // let prefixed_id = format!("anyon-{}", attempt_id);
         // Insert the record into the database
         Ok(sqlx::query_as!(
             TaskAttempt,
-            r#"INSERT INTO task_attempts (id, task_id, container_ref, branch, target_branch, executor, worktree_deleted, setup_completed_at)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            r#"INSERT INTO task_attempts (id, task_id, user_id, container_ref, branch, target_branch, executor, worktree_deleted, setup_completed_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                RETURNING id as "id!: Uuid", task_id as "task_id!: Uuid", container_ref, branch, target_branch, executor as "executor!",  worktree_deleted as "worktree_deleted!: bool", setup_completed_at as "setup_completed_at: DateTime<Utc>", created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>""#,
             id,
             task_id,
+            user_id,
             Option::<String>::None, // Container isn't known yet
             data.branch,
             data.base_branch, // Target branch is same as base branch during creation
@@ -462,5 +521,25 @@ impl TaskAttempt {
         .ok_or(sqlx::Error::RowNotFound)?;
 
         Ok((result.attempt_id, result.task_id, result.project_id))
+    }
+
+    /// Claim orphaned task attempts (where user_id is NULL) and assign them to the given user.
+    /// Only claims attempts whose parent tasks belong to the user.
+    pub async fn claim_orphaned(pool: &SqlitePool, user_id: &str) -> Result<u64, sqlx::Error> {
+        let result = sqlx::query!(
+            r#"
+                UPDATE task_attempts
+                SET user_id = $1
+                WHERE user_id IS NULL
+                  AND task_id IN (
+                      SELECT id FROM tasks WHERE user_id = $1
+                  )
+            "#,
+            user_id
+        )
+        .execute(pool)
+        .await?;
+
+        Ok(result.rows_affected())
     }
 }
