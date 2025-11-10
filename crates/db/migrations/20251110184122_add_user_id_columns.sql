@@ -2,7 +2,6 @@
 -- This migration adds user_id TEXT columns (nullable initially) to allow
 -- gradual transition from single-user to multi-user architecture.
 
-BEGIN IMMEDIATE;
 PRAGMA foreign_keys = OFF;
 
 -- 1. projects table
@@ -43,4 +42,3 @@ ALTER TABLE merges ADD COLUMN user_id TEXT;
 CREATE INDEX idx_merges_user_id ON merges(user_id);
 
 PRAGMA foreign_keys = ON;
-COMMIT;

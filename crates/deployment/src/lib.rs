@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, io, sync::Arc};
 
 use anyhow::Error as AnyhowError;
 use async_trait::async_trait;
@@ -42,7 +42,7 @@ use utils::{msg_store::MsgStore, sentry as sentry_utils};
 #[derive(Debug, Error)]
 pub enum DeploymentError {
     #[error(transparent)]
-    Io(#[from] std::io::Error),
+    Io(#[from] io::Error),
     #[error(transparent)]
     Sqlx(#[from] SqlxError),
     #[error(transparent)]
@@ -75,6 +75,20 @@ pub enum DeploymentError {
     ClaudeAuth(#[from] ClaudeAuthError),
     #[error(transparent)]
     Other(#[from] AnyhowError),
+}
+
+#[derive(Debug, Error)]
+pub enum WorkspaceDirError {
+    #[error(
+        "Unable to resolve workspace directory because HOME/USERPROFILE environment variables are not set"
+    )]
+    MissingHomeEnvironment,
+}
+
+impl From<WorkspaceDirError> for io::Error {
+    fn from(err: WorkspaceDirError) -> Self {
+        io::Error::new(io::ErrorKind::NotFound, err.to_string())
+    }
 }
 
 #[async_trait]
@@ -320,7 +334,9 @@ pub trait Deployment: Clone + Send + Sync + 'static {
 
                     // Create project (ignore individual failures)
                     let project_id = Uuid::new_v4();
-                    match Project::create(&self.db().pool, &create_data, project_id).await {
+                    match Project::create(&self.db().pool, &create_data, project_id, self.user_id())
+                        .await
+                    {
                         Ok(project) => {
                             tracing::info!(
                                 "Auto-created project '{}' from {}",

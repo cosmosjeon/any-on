@@ -127,6 +127,80 @@ sqlx database create                 # Create database
 # Database is auto-copied from dev_assets_seed/ on dev server start
 ```
 
+## MCP Server Configuration (MCP 서버 설정)
+
+This project includes MCP (Model Context Protocol) server configurations in `.mcp.json` and `.claude/.mcp.json` files.
+
+### Prerequisites (필수 사항)
+
+Before using the MCP servers, you need to install their dependencies:
+
+**For Serena (Coding Agent Toolkit):**
+```bash
+# Install uv (Python package manager)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Add uv to your PATH (add this to your ~/.zshrc or ~/.bashrc)
+export PATH="$HOME/.local/bin:$PATH"
+
+# Verify installation
+uv --version
+```
+
+**For context7 and memory servers:**
+```bash
+# These use npx and will auto-install when needed
+# No additional setup required
+```
+
+### Available MCP Servers
+
+The project is configured with the following MCP servers:
+
+1. **context7**: Up-to-date library documentation and code examples
+2. **memory**: Knowledge graph for maintaining context across sessions
+3. **serena**: Semantic code retrieval and editing (supports 30+ languages including Rust)
+
+### Testing MCP Server Configuration
+
+To verify your MCP servers are configured correctly:
+
+```bash
+# Test serena (requires uv installation)
+uvx --from git+https://github.com/oraios/serena serena start-mcp-server --help
+
+# Test that npx can access context7
+npx -y @upstash/context7-mcp --version 2>/dev/null || echo "context7 available"
+```
+
+### Modifying MCP Configuration
+
+**DO NOT** hard-code absolute paths in `.mcp.json` files. Use relative paths or commands available in PATH so the configuration works across different environments.
+
+**Good:**
+```json
+{
+  "command": "uvx",
+  "args": ["--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server"]
+}
+```
+
+**Bad:**
+```json
+{
+  "command": "/Users/yourname/.local/bin/uvx",  // ❌ Don't use absolute paths
+  "args": ["serena", "start-mcp-server"]
+}
+```
+
+### For Team Members
+
+When you clone this repository:
+
+1. Install uv if you want to use serena MCP server (see Prerequisites above)
+2. The MCP configurations will work automatically with Claude Code
+3. No need to modify `.mcp.json` files - they're already configured for portability
+
 ## Architecture Overview
 
 ### Tech Stack

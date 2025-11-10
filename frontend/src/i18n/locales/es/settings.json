@@ -77,6 +77,7 @@
       "github": {
         "title": "Integración con GitHub",
         "connected": "Conectado como {{username}}",
+        "connectedGeneric": "Conectado con cuenta de GitHub",
         "connectButton": "Conectar Cuenta de GitHub",
         "manage": "Gestionar",
         "disconnect": "Desconectar",
@@ -96,7 +97,7 @@
         "title": "Inicio de sesión de Claude Code",
         "description": "Vincula Claude Code CLI sin salir del navegador.",
         "helper": "Anyon transmite las indicaciones de la CLI de Claude, abre automáticamente la página de aprobación de Anthropic y guarda el token emitido en SecretStore para que nunca pegues códigos manualmente.",
-        "cloudOnly": "La autenticación de Claude solo está disponible en despliegues de Anyon Cloud.",
+        "cloudOnly": "La autenticación de Claude está disponible tanto en despliegues locales como en la nube.",
         "status": {
           "connected": "Las credenciales de Claude se almacenan de forma segura.",
           "disconnected": "Aún no hay credenciales de Claude conectadas."

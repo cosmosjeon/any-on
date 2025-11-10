@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                UPDATE task_attempts\n                SET user_id = $1\n                WHERE user_id IS NULL\n                  AND task_id IN (\n                      SELECT id FROM tasks WHERE user_id = $1\n                  )\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "d7c94ee7aeaf7342ca3cf0eb92187fa112633fceec3e770ed5dcfdc7fa720873"
+}

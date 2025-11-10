@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, SqlitePool};
+use sqlx::{FromRow, Sqlite, SqlitePool};
 use thiserror::Error;
 use ts_rs::TS;
 use uuid::Uuid;
@@ -92,10 +92,7 @@ impl Project {
 
     /// Find projects for a specific user (multi-user support)
     /// This is the recommended method for querying user-specific projects
-    pub async fn find_by_user(
-        pool: &SqlitePool,
-        user_id: &str,
-    ) -> Result<Vec<Self>, sqlx::Error> {
+    pub async fn find_by_user(pool: &SqlitePool, user_id: &str) -> Result<Vec<Self>, sqlx::Error> {
         sqlx::query_as!(
             Project,
             r#"
@@ -212,12 +209,15 @@ impl Project {
     }
 
     /// Create a new project (multi-user support)
-    pub async fn create(
-        pool: &SqlitePool,
+    pub async fn create<'e, E>(
+        executor: E,
         data: &CreateProject,
         project_id: Uuid,
-        user_id: &str,  // ✅ Added for multi-user support
-    ) -> Result<Self, sqlx::Error> {
+        user_id: &str, // ✅ Added for multi-user support
+    ) -> Result<Self, sqlx::Error>
+    where
+        E: sqlx::Executor<'e, Database = Sqlite>,
+    {
         sqlx::query_as!(
             Project,
             r#"INSERT INTO projects (id, user_id, name, git_repo_path, setup_script, dev_script, cleanup_script, copy_files) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id as "id!: Uuid", name, git_repo_path, setup_script, dev_script, cleanup_script, copy_files, created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>""#,
@@ -230,7 +230,7 @@ impl Project {
             data.cleanup_script,
             data.copy_files
         )
-        .fetch_one(pool)
+        .fetch_one(executor)
         .await
     }
 

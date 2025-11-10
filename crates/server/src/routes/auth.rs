@@ -1,32 +1,29 @@
 use axum::{
-    Json,
-    Router,
+    Json, Router,
     extract::{Path, Request, State},
     http::StatusCode,
     middleware::{Next, from_fn_with_state},
-    response::{Json as ResponseJson, Response, Sse, sse::{Event, KeepAlive}},
+    response::{
+        Json as ResponseJson, Response, Sse,
+        sse::{Event, KeepAlive},
+    },
     routing::{get, post},
 };
+use db::models::{
+    draft::Draft, image::Image, project::Project, tag::Tag, task::Task, task_attempt::TaskAttempt,
+};
 use deployment::{Deployment, DeploymentError};
+use futures_util::StreamExt;
 use octocrab::auth::Continue;
 use serde::{Deserialize, Serialize};
-use db::models::{
-    draft::Draft,
-    image::Image,
-    project::Project,
-    tag::Tag,
-    task::Task,
-    task_attempt::TaskAttempt,
-};
 use services::services::{
     auth::{AuthError, DeviceFlowStartResponse},
     config::save_config_to_file,
     github_service::{GitHubService, GitHubServiceError},
     secret_store::{SECRET_CLAUDE_ACCESS, SECRET_GITHUB_OAUTH},
 };
-use futures_util::StreamExt;
-use uuid::Uuid;
 use utils::response::ApiResponse;
+use uuid::Uuid;
 
 use crate::{DeploymentImpl, error::ApiError};
 
@@ -325,12 +322,19 @@ async fn github_check_token(
 async fn claude_session_start(
     State(deployment): State<DeploymentImpl>,
 ) -> Result<ResponseJson<ApiResponse<ClaudeSessionResponse>>, ApiError> {
+    tracing::info!("Received Claude session start request");
     let session_id = deployment
         .claude_auth()
         .start_session()
         .await
-        .map_err(|err| ApiError::Deployment(err.into()))?;
-    Ok(ResponseJson(ApiResponse::success(ClaudeSessionResponse { session_id })))
+        .map_err(|err| {
+            tracing::error!("Failed to start Claude session: {}", err);
+            ApiError::Deployment(err.into())
+        })?;
+    tracing::info!(session_id = %session_id, "Claude session started successfully");
+    Ok(ResponseJson(ApiResponse::success(ClaudeSessionResponse {
+        session_id,
+    })))
 }
 
 async fn claude_session_stream(
@@ -346,9 +350,9 @@ async fn claude_session_stream(
         match item {
             Ok(payload) => match Event::default().json_data(&payload) {
                 Ok(event) => Some(Ok(event)),
-                Err(err) => Some(Err(ApiError::Deployment(
-                    DeploymentError::Other(err.into()),
-                ))),
+                Err(err) => Some(Err(ApiError::Deployment(DeploymentError::Other(
+                    err.into(),
+                )))),
             },
             Err(_) => None,
         }

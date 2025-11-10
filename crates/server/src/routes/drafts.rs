@@ -28,18 +28,15 @@ pub async fn stream_project_drafts_ws(
     Query(query): Query<DraftsQuery>,
 ) -> impl IntoResponse {
     // Validate that the project belongs to the user
-    let project_result = Project::find_by_id_for_user(
-        &deployment.db().pool,
-        query.project_id,
-        &user.user_id,
-    )
-    .await;
+    let project_result =
+        Project::find_by_id_for_user(&deployment.db().pool, query.project_id, &user.user_id).await;
 
     ws.on_upgrade(move |socket| async move {
         // Check project ownership before processing
         match project_result {
             Ok(Some(_project)) => {
-                if let Err(e) = handle_project_drafts_ws(socket, deployment, query.project_id).await {
+                if let Err(e) = handle_project_drafts_ws(socket, deployment, query.project_id).await
+                {
                     tracing::warn!("drafts WS closed: {}", e);
                 }
             }

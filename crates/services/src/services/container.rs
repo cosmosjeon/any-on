@@ -26,6 +26,7 @@ use executors::{
         coding_agent_initial::CodingAgentInitialRequest,
         script::{ScriptContext, ScriptRequest, ScriptRequestLanguage},
     },
+    command::{CommandRuntime, HostCommandRuntime},
     executors::{ExecutorError, StandardCodingAgentExecutor},
     logs::{NormalizedEntry, NormalizedEntryError, NormalizedEntryType, utils::ConversationPatch},
     profile::{ExecutorConfigs, ExecutorProfileId, to_default_variant},
@@ -46,7 +47,6 @@ use crate::services::{
     image::ImageService,
     worktree_manager::{WorktreeError, WorktreeManager},
 };
-use executors::command::{CommandRuntime, HostCommandRuntime};
 pub type ContainerRef = String;
 
 /// Data needed for background worktree cleanup (doesn't require DB access)

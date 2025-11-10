@@ -29,7 +29,9 @@ use ts_rs::TS;
 use utils::response::ApiResponse;
 use uuid::Uuid;
 
-use crate::{DeploymentImpl, auth::AuthenticatedUser, error::ApiError, middleware::load_task_middleware};
+use crate::{
+    DeploymentImpl, auth::AuthenticatedUser, error::ApiError, middleware::load_task_middleware,
+};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TaskQuery {
@@ -103,7 +105,7 @@ pub async fn get_task(
 
 pub async fn create_task(
     State(deployment): State<DeploymentImpl>,
-    Extension(user): Extension<AuthenticatedUser>,  // ✅ 추가
+    Extension(user): Extension<AuthenticatedUser>, // ✅ 추가
     Json(payload): Json<CreateTask>,
 ) -> Result<ResponseJson<ApiResponse<Task>>, ApiError> {
     let id = Uuid::new_v4();
@@ -115,7 +117,7 @@ pub async fn create_task(
         user.username
     );
 
-    let task = Task::create(&deployment.db().pool, &payload, id, &user.user_id).await?;  // ✅ user_id 추가
+    let task = Task::create(&deployment.db().pool, &payload, id, &user.user_id).await?; // ✅ user_id 추가
 
     if let Some(image_ids) = &payload.image_ids {
         TaskImage::associate_many_dedup(&deployment.db().pool, task.id, image_ids).await?;
@@ -145,11 +147,11 @@ pub struct CreateAndStartTaskRequest {
 
 pub async fn create_task_and_start(
     State(deployment): State<DeploymentImpl>,
-    Extension(user): Extension<AuthenticatedUser>,  // ✅ 추가
+    Extension(user): Extension<AuthenticatedUser>, // ✅ 추가
     Json(payload): Json<CreateAndStartTaskRequest>,
 ) -> Result<ResponseJson<ApiResponse<TaskWithAttemptStatus>>, ApiError> {
     let task_id = Uuid::new_v4();
-    let task = Task::create(&deployment.db().pool, &payload.task, task_id, &user.user_id).await?;  // ✅ user_id 추가
+    let task = Task::create(&deployment.db().pool, &payload.task, task_id, &user.user_id).await?; // ✅ user_id 추가
 
     if let Some(image_ids) = &payload.task.image_ids {
         TaskImage::associate_many(&deployment.db().pool, task.id, image_ids).await?;

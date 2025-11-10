@@ -23,9 +23,7 @@ use utils::response::ApiResponse;
 use uuid::Uuid;
 
 use crate::{
-    DeploymentImpl, error::ApiError,
-    auth::AuthenticatedUser,
-    middleware::auth::require_auth,
+    DeploymentImpl, auth::AuthenticatedUser, error::ApiError, middleware::auth::require_auth,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -122,7 +120,8 @@ pub async fn upload_task_image(
         .await?
         .ok_or(ApiError::Database(SqlxError::RowNotFound))?;
 
-    let image_response = process_image_upload(&deployment, multipart, Some(task_id), &user.user_id).await?;
+    let image_response =
+        process_image_upload(&deployment, multipart, Some(task_id), &user.user_id).await?;
     Ok(ResponseJson(ApiResponse::success(image_response)))
 }
 

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                UPDATE projects\n                SET user_id = $1\n                WHERE user_id IS NULL\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "64f2f8e9075d54e6f2435609d1b73cade3fc3bb93c2883acb8502008a7f1169d"
+}

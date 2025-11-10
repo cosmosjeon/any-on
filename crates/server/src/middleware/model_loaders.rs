@@ -81,10 +81,20 @@ pub async fn load_task_attempt_middleware(
         .clone();
 
     // Load the TaskAttempt from the database with user validation
-    let attempt = match TaskAttempt::find_by_id_for_user(&deployment.db().pool, task_attempt_id, &user.user_id).await {
+    let attempt = match TaskAttempt::find_by_id_for_user(
+        &deployment.db().pool,
+        task_attempt_id,
+        &user.user_id,
+    )
+    .await
+    {
         Ok(Some(a)) => a,
         Ok(None) => {
-            tracing::warn!("TaskAttempt {} not found or access denied for user {}", task_attempt_id, user.user_id);
+            tracing::warn!(
+                "TaskAttempt {} not found or access denied for user {}",
+                task_attempt_id,
+                user.user_id
+            );
             return Err(StatusCode::NOT_FOUND);
         }
         Err(e) => {
@@ -201,7 +211,11 @@ pub async fn load_tag_middleware(
     let tag = match Tag::find_by_id_for_user(&deployment.db().pool, tag_id, &user.user_id).await {
         Ok(Some(tag)) => tag,
         Ok(None) => {
-            tracing::warn!("Tag {} not found or access denied for user {}", tag_id, user.user_id);
+            tracing::warn!(
+                "Tag {} not found or access denied for user {}",
+                tag_id,
+                user.user_id
+            );
             return Err(StatusCode::NOT_FOUND);
         }
         Err(e) => {

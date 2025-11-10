@@ -6,7 +6,7 @@ use std::{
 
 use git2::{Error as GitError, Repository};
 use thiserror::Error;
-use tracing::{debug, info};
+use tracing::{debug, error, info, warn};
 use utils::shell::resolve_executable_path;
 
 use super::{
@@ -71,7 +71,30 @@ impl WorktreeManager {
             .map_err(|e| WorktreeError::TaskJoin(format!("Task join error: {e}")))??;
         }
 
-        Self::ensure_worktree_exists(repo_path, branch_name, worktree_path).await
+        match Self::ensure_worktree_exists(repo_path, branch_name, worktree_path).await {
+            Ok(()) => Ok(()),
+            Err(err) => {
+                error!(
+                    error = %err,
+                    repo_path = %repo_path.display(),
+                    branch = branch_name,
+                    worktree = %worktree_path.display(),
+                    "Failed to create worktree"
+                );
+
+                if let Err(cleanup_err) =
+                    Self::cleanup_worktree(worktree_path, Some(repo_path)).await
+                {
+                    warn!(
+                        error = %cleanup_err,
+                        worktree = %worktree_path.display(),
+                        "Failed to clean up worktree after creation failure"
+                    );
+                }
+
+                Err(err)
+            }
+        }
     }
 
     /// Ensure worktree exists, recreating if necessary with proper synchronization

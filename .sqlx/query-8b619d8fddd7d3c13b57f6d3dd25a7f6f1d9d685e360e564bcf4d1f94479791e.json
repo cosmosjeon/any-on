@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "INSERT INTO projects (id, name, git_repo_path, setup_script, dev_script, cleanup_script, copy_files) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id as \"id!: Uuid\", name, git_repo_path, setup_script, dev_script, cleanup_script, copy_files, created_at as \"created_at!: DateTime<Utc>\", updated_at as \"updated_at!: DateTime<Utc>\"",
+  "query": "\n            SELECT\n                id as \"id!: Uuid\",\n                name,\n                git_repo_path,\n                setup_script,\n                dev_script,\n                cleanup_script,\n                copy_files,\n                created_at as \"created_at!: DateTime<Utc>\",\n                updated_at as \"updated_at!: DateTime<Utc>\"\n            FROM projects\n            WHERE user_id = $1\n            ORDER BY updated_at DESC\n            ",
   "describe": {
     "columns": [
       {
@@ -50,7 +50,7 @@
       }
     ],
     "parameters": {
-      "Right": 7
+      "Right": 1
     },
     "nullable": [
       true,
@@ -64,5 +64,5 @@
       false
     ]
   },
-  "hash": "59d178b298ba60d490a9081a40064a5acb06fecbc0b164c0de2fe502d02b13a7"
+  "hash": "8b619d8fddd7d3c13b57f6d3dd25a7f6f1d9d685e360e564bcf4d1f94479791e"
 }

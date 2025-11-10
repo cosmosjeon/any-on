@@ -3,7 +3,6 @@ import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 import './styles/index.css';
 import { ClickToComponent } from 'click-to-react-component';
-import { AnyonWebCompanion } from 'anyon-web-companion';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import * as Sentry from '@sentry/react';
 import NiceModal from '@ebay/nice-modal-react';
@@ -114,6 +113,27 @@ const queryClient = new QueryClient({
   },
 });
 
+// Conditionally load AnyonWebCompanion if available
+const CompanionLoader = () => {
+  const [Companion, setCompanion] =
+    React.useState<React.ComponentType | null>(null);
+
+  React.useEffect(() => {
+    const moduleName = 'anyon-web-companion';
+    import(/* @vite-ignore */ moduleName)
+      .then((module) => {
+        if ('AnyonWebCompanion' in module) {
+          setCompanion(() => module.AnyonWebCompanion as React.ComponentType);
+        }
+      })
+      .catch(() => {
+        // Module is optional; ignore missing dependency
+      });
+  }, []);
+
+  return Companion ? <Companion /> : null;
+};
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
@@ -123,7 +143,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           showDialog
         >
           <ClickToComponent />
-          <AnyonWebCompanion />
+          <CompanionLoader />
           <App />
           {/* <ReactQueryDevtools initialIsOpen={false} /> */}
         </Sentry.ErrorBoundary>

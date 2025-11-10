@@ -2636,6 +2636,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34080505efa8e45a4b816c349525ebe327ceaa8559756f0356cba97ef3bf7432"
 
 [[package]]
+name = "lru"
+version = "0.12.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "234cf4f4a04dc1f57e24b96cc0cd600cf2af460d4161ac5ecdd0af8e1f3b2a38"
+dependencies = [
+ "hashbrown 0.15.5",
+]
+
+[[package]]
 name = "mac-notification-sys"
 version = "0.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2681,6 +2690,12 @@ dependencies = [
  "cfg-if",
  "digest",
 ]
+
+[[package]]
+name = "md5"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "490cc448043f947bae3cbee9c203358d62dbee0db12107a74be5c30ccfd09771"
 
 [[package]]
 name = "memchr"
@@ -4227,6 +4242,7 @@ dependencies = [
  "deployment",
  "dirs 5.0.1",
  "dotenv",
+ "dotenvy",
  "executors",
  "futures-util",
  "git2",
@@ -4288,6 +4304,8 @@ dependencies = [
  "json-patch",
  "lazy_static",
  "libc",
+ "lru",
+ "md5",
  "moka",
  "notify",
  "notify-debouncer-full",

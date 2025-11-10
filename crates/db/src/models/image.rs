@@ -176,11 +176,7 @@ impl Image {
         .await
     }
 
-    pub async fn delete(
-        pool: &SqlitePool,
-        id: Uuid,
-        user_id: &str,
-    ) -> Result<(), sqlx::Error> {
+    pub async fn delete(pool: &SqlitePool, id: Uuid, user_id: &str) -> Result<(), sqlx::Error> {
         sqlx::query!(
             r#"DELETE FROM images WHERE id = $1 AND user_id = $2"#,
             id,

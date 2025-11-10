@@ -181,12 +181,14 @@ impl GitHubService {
     }
 
     /// Get current authenticated user information
-    pub async fn get_current_user(&self) -> Result<crate::services::github_user_cache::GitHubUser, GitHubServiceError> {
+    pub async fn get_current_user(
+        &self,
+    ) -> Result<crate::services::github_user_cache::GitHubUser, GitHubServiceError> {
         let user = self.client.current().user().await?;
         Ok(crate::services::github_user_cache::GitHubUser {
             id: user.id.0 as i64,
             login: user.login,
-            avatar_url: user.avatar_url.map(|u| u.to_string()),
+            avatar_url: Some(user.avatar_url.to_string()),
         })
     }
 

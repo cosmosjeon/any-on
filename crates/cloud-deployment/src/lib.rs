@@ -2,12 +2,13 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use async_trait::async_trait;
 use db::DBService;
-use deployment::{Deployment, DeploymentError};
+use deployment::{Deployment, DeploymentError, WorkspaceDirError};
 use local_deployment::{LocalDeployment, container::LocalContainerService};
 use services::services::{
     analytics::AnalyticsService,
     approvals::Approvals,
     auth::AuthService,
+    claude_auth::ClaudeAuthManager,
     cloud_container::{CloudContainerService, CloudContainerSettings},
     config::Config,
     container::ContainerService,
@@ -17,7 +18,6 @@ use services::services::{
     filesystem::FilesystemService,
     git::GitService,
     image::ImageService,
-    claude_auth::ClaudeAuthManager,
     secret_store::SecretStore,
 };
 use tokio::sync::RwLock;
@@ -144,7 +144,7 @@ impl Deployment for CloudDeployment {
 }
 
 impl CloudDeployment {
-    pub fn workspace_dir(&self) -> PathBuf {
-        self.cloud_config.workspace_dir().clone()
+    pub async fn workspace_dir(&self) -> Result<PathBuf, WorkspaceDirError> {
+        Ok(self.cloud_config.workspace_dir().clone())
     }
 }

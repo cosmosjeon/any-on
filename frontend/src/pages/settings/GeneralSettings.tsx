@@ -191,14 +191,15 @@ export function GeneralSettings() {
     updateAndSaveConfig({ onboarding_acknowledged: false });
   };
 
-  const githubFeatureEnabled = isCloud;
+  // GitHub Device Flow is available in both local and cloud deployments.
+  const githubFeatureEnabled = true;
   const githubConnected = !!(
     githubFeatureEnabled &&
-    config?.github?.username &&
     githubSecretState?.has_oauth_token
   );
   const patConfigured = !!githubSecretState?.has_pat;
-  const claudeFeatureEnabled = isCloud;
+  // Claude Code authentication is available in both local and cloud deployments.
+  const claudeFeatureEnabled = true;
   const claudeConnected = !!(
     claudeFeatureEnabled && claudeSecretState?.has_credentials
   );
@@ -513,11 +514,13 @@ export function GeneralSettings() {
                   <div className="flex items-center justify-between p-4 border rounded-lg">
                     <div>
                       <p className="font-medium">
-                        {t('settings.general.github.connected', {
-                          username: config.github.username,
-                        })}
+                        {config?.github?.username
+                          ? t('settings.general.github.connected', {
+                              username: config.github.username,
+                            })
+                          : t('settings.general.github.connectedGeneric')}
                       </p>
-                      {config.github.primary_email && (
+                      {config?.github?.primary_email && (
                         <p className="text-sm text-muted-foreground">
                           {config.github.primary_email}
                         </p>

@@ -12,8 +12,10 @@ use ts_rs::TS;
 use utils::response::ApiResponse;
 
 use crate::{
-    DeploymentImpl, error::ApiError, middleware::load_tag_middleware,
-    auth::AuthenticatedUser, middleware::auth::require_auth,
+    DeploymentImpl,
+    auth::AuthenticatedUser,
+    error::ApiError,
+    middleware::{auth::require_auth, load_tag_middleware},
 };
 
 #[derive(Deserialize, TS)]

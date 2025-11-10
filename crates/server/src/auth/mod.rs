@@ -2,7 +2,6 @@
 ///
 /// This module provides the AuthenticatedUser type which is injected
 /// into API handlers via Axum's Extension mechanism.
-
 use serde::{Deserialize, Serialize};
 
 /// Represents an authenticated user from GitHub OAuth

@@ -1,12 +1,11 @@
+use std::{num::NonZeroUsize, sync::Arc};
+
 /// GitHub User Cache for reducing API calls
 ///
 /// Uses LRU cache with 5-minute TTL to cache GitHub user information
 /// Retrieved via GitHub token validation.
-
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeDelta, Utc};
 use lru::LruCache;
-use std::num::NonZeroUsize;
-use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use super::github_service::{GitHubService, GitHubServiceError};
@@ -46,9 +45,9 @@ impl GitHubUserCache {
     /// Create a cache with custom capacity and TTL
     pub fn with_capacity_and_ttl(capacity: usize, ttl_seconds: i64) -> Self {
         Self {
-            cache: Arc::new(RwLock::new(
-                LruCache::new(NonZeroUsize::new(capacity).unwrap())
-            )),
+            cache: Arc::new(RwLock::new(LruCache::new(
+                NonZeroUsize::new(capacity).unwrap(),
+            ))),
             ttl_seconds,
         }
     }

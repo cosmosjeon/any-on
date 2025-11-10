@@ -20,8 +20,9 @@ use utils::{log_msg::LogMsg, response::ApiResponse};
 use uuid::Uuid;
 
 use crate::{
-    DeploymentImpl, error::ApiError, middleware::auth::require_auth,
-    middleware::load_execution_process_middleware,
+    DeploymentImpl,
+    error::ApiError,
+    middleware::{auth::require_auth, load_execution_process_middleware},
 };
 
 #[derive(Debug, Deserialize)]

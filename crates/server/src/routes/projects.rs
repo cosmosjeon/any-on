@@ -1,4 +1,7 @@
-use std::{path::Path, path::PathBuf};
+use std::{
+    io,
+    path::{Path, PathBuf},
+};
 
 use axum::{
     Extension, Json, Router,
@@ -6,7 +9,7 @@ use axum::{
     http::StatusCode,
     middleware::from_fn_with_state,
     response::Json as ResponseJson,
-    routing::{get, post},
+    routing::get,
 };
 use db::models::project::{
     CreateProject, Project, ProjectError, SearchMatchType, SearchResult, UpdateProject,
@@ -18,14 +21,29 @@ use services::services::{
     file_search_cache::{CacheError, SearchMode, SearchQuery},
     git::GitBranch,
 };
+use tokio::fs;
 use utils::{path::expand_tilde, response::ApiResponse};
 use uuid::Uuid;
-use tokio::fs;
 
-use crate::{auth::AuthenticatedUser, DeploymentImpl, error::ApiError, middleware::load_project_middleware};
+use crate::{
+    DeploymentImpl, auth::AuthenticatedUser, error::ApiError, middleware::load_project_middleware,
+};
 
-async fn resolve_workspace_path(deployment: &DeploymentImpl) -> Result<PathBuf, std::io::Error> {
-    let base_path = deployment.workspace_dir();
+pub(crate) const INVALID_PROJECT_NAME_CHARS: &[char] =
+    &['/', '\\', ':', '*', '?', '"', '<', '>', '|'];
+pub(crate) const INVALID_PROJECT_NAME_MESSAGE: &str =
+    "Project name cannot contain / \\ : * ? \" < > | or control characters.";
+
+pub(crate) fn contains_invalid_project_name_chars(name: &str) -> bool {
+    name.chars()
+        .any(|c| c.is_control() || INVALID_PROJECT_NAME_CHARS.contains(&c))
+}
+
+async fn resolve_workspace_path(deployment: &DeploymentImpl) -> Result<PathBuf, io::Error> {
+    let base_path = deployment
+        .workspace_dir()
+        .await
+        .map_err(io::Error::from)?;
     fs::create_dir_all(&base_path).await?;
     Ok(base_path)
 }
@@ -33,7 +51,7 @@ async fn resolve_workspace_path(deployment: &DeploymentImpl) -> Result<PathBuf, 
 /// Get all projects for the authenticated user
 pub async fn get_projects(
     State(deployment): State<DeploymentImpl>,
-    Extension(user): Extension<AuthenticatedUser>,  // ✅ 추가
+    Extension(user): Extension<AuthenticatedUser>, // ✅ 추가
 ) -> Result<ResponseJson<ApiResponse<Vec<Project>>>, ApiError> {
     // ✅ find_by_user로 변경 (이 사용자의 프로젝트만)
     let projects = Project::find_by_user(&deployment.db().pool, &user.user_id).await?;
@@ -64,7 +82,7 @@ pub async fn get_project_branches(
 /// Create a new project for the authenticated user
 pub async fn create_project(
     State(deployment): State<DeploymentImpl>,
-    Extension(user): Extension<AuthenticatedUser>,  // ✅ 추가
+    Extension(user): Extension<AuthenticatedUser>, // ✅ 추가
     Json(payload): Json<CreateProject>,
 ) -> Result<ResponseJson<ApiResponse<Project>>, ApiError> {
     let id = Uuid::new_v4();
@@ -79,30 +97,42 @@ pub async fn create_project(
     } = payload;
     tracing::debug!("Creating project '{}'", name);
 
+    let name = name.trim().to_string();
+    if name.is_empty() {
+        return Ok(ResponseJson(ApiResponse::error("Project name is required")));
+    }
+    if contains_invalid_project_name_chars(&name) {
+        return Ok(ResponseJson(ApiResponse::error(
+            INVALID_PROJECT_NAME_MESSAGE,
+        )));
+    }
+
     // Replit-style: If git_repo_path is empty, auto-generate from workspace_dir + project name
     let path = if git_repo_path.is_empty() || git_repo_path.trim().is_empty() {
         // Get workspace directory (Replit-style)
-        let workspace_path = resolve_workspace_path(&deployment).await
+        let workspace_path = resolve_workspace_path(&deployment)
+            .await
             .map_err(|e| ApiError::Project(ProjectError::GitRepoCheckFailed(e.to_string())))?;
         workspace_path.join(&name)
     } else {
         std::path::absolute(expand_tilde(&git_repo_path))?
     };
-    // Check if git repo path is already used by another project
-    match Project::find_by_git_repo_path(&deployment.db().pool, path.to_string_lossy().as_ref())
-        .await
-    {
-        Ok(Some(_)) => {
-            return Ok(ResponseJson(ApiResponse::error(
-                "A project with this git repository path already exists",
-            )));
-        }
-        Ok(None) => {
-            // Path is available, continue
-        }
-        Err(e) => {
-            return Err(ProjectError::GitRepoCheckFailed(e.to_string()).into());
-        }
+    let path_string = path.to_string_lossy().to_string();
+
+    let mut tx = deployment.db().pool.begin().await?;
+
+    let existing_for_user = sqlx::query_scalar::<_, i64>(
+        "SELECT 1 FROM projects WHERE user_id = ?1 AND git_repo_path = ?2",
+    )
+    .bind(&user.user_id)
+    .bind(&path_string)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    if existing_for_user.is_some() {
+        return Ok(ResponseJson(ApiResponse::error(
+            "A project with this git repository path already exists",
+        )));
     }
 
     if use_existing_repo {
@@ -158,23 +188,19 @@ pub async fn create_project(
         }
     }
 
-    match Project::create(
-        &deployment.db().pool,
-        &CreateProject {
-            name,
-            git_repo_path: path.to_string_lossy().to_string(),
-            use_existing_repo,
-            setup_script,
-            dev_script,
-            cleanup_script,
-            copy_files,
-        },
-        id,
-        &user.user_id,  // ✅ 추가: 이 프로젝트의 소유자
-    )
-    .await
-    {
+    let create_payload = CreateProject {
+        name,
+        git_repo_path: path_string,
+        use_existing_repo,
+        setup_script,
+        dev_script,
+        cleanup_script,
+        copy_files,
+    };
+
+    match Project::create(&mut *tx, &create_payload, id, &user.user_id).await {
         Ok(project) => {
+            tx.commit().await?;
             // Track project creation event
             deployment
                 .track_if_analytics_allowed(
@@ -191,7 +217,19 @@ pub async fn create_project(
 
             Ok(ResponseJson(ApiResponse::success(project)))
         }
-        Err(e) => Err(ProjectError::CreateFailed(e.to_string()).into()),
+        Err(e) => {
+            if let sqlx::Error::Database(db_err) = &e {
+                if db_err
+                    .message()
+                    .contains("UNIQUE constraint failed: projects.user_id, projects.git_repo_path")
+                {
+                    return Ok(ResponseJson(ApiResponse::error(
+                        "A project with this git repository path already exists",
+                    )));
+                }
+            }
+            Err(ProjectError::CreateFailed(e.to_string()).into())
+        }
     }
 }
 
@@ -211,6 +249,21 @@ pub async fn update_project(
         cleanup_script,
         copy_files,
     } = payload;
+    let name = match name {
+        Some(value) => {
+            let trimmed = value.trim().to_string();
+            if trimmed.is_empty() {
+                return Ok(ResponseJson(ApiResponse::error("Project name is required")));
+            }
+            if contains_invalid_project_name_chars(&trimmed) {
+                return Ok(ResponseJson(ApiResponse::error(
+                    INVALID_PROJECT_NAME_MESSAGE,
+                )));
+            }
+            Some(trimmed)
+        }
+        None => None,
+    };
     // If git_repo_path is being changed, check if the new path is already used by another project
     let git_repo_path = if let Some(new_git_repo_path) = git_repo_path.map(|s| expand_tilde(&s))
         && new_git_repo_path != existing_project.git_repo_path

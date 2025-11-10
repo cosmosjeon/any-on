@@ -77,6 +77,7 @@
       "github": {
         "title": "GitHub連携",
         "connected": "{{username}}として接続中",
+        "connectedGeneric": "GitHubアカウントで接続中",
         "connectButton": "GitHubアカウントを接続",
         "manage": "管理",
         "disconnect": "切断",
@@ -96,7 +97,7 @@
         "title": "Claude Code ログイン",
         "description": "ブラウザーだけで Claude Code CLI を連携します。",
         "helper": "Anyon が CLI のプロンプトをストリーミングし、Anthropic の承認ページを自動で開いて、発行されたトークンを SecretStore に暗号化して保存します。もう手動でトークンを貼り付ける必要はありません。",
-        "cloudOnly": "Claude 認証は Anyon Cloud でのみ利用できます。",
+        "cloudOnly": "Claude認証はローカル環境とクラウド環境の両方で利用できます。",
         "status": {
           "connected": "Claude の認証情報は安全に保存されています。",
           "disconnected": "Claude の認証情報はまだ接続されていません。"

@@ -129,11 +129,7 @@ impl Tag {
         .await
     }
 
-    pub async fn delete(
-        pool: &SqlitePool,
-        id: Uuid,
-        user_id: &str,
-    ) -> Result<u64, sqlx::Error> {
+    pub async fn delete(pool: &SqlitePool, id: Uuid, user_id: &str) -> Result<u64, sqlx::Error> {
         let result = sqlx::query!(
             "DELETE FROM tags WHERE id = $1 AND user_id = $2",
             id,

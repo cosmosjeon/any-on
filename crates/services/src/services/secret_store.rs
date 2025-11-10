@@ -6,7 +6,7 @@ use aes_gcm::{
 };
 use base64::Engine;
 use db::{DBService, models::secret::SecretRecord};
-use rand::{rngs::OsRng, RngCore};
+use rand::{RngCore, rngs::OsRng};
 use thiserror::Error;
 
 const SECRET_KEY_ENV: &str = "ANYON_SECRET_KEY";

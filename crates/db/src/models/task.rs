@@ -227,10 +227,7 @@ ORDER BY t.created_at DESC"#,
     }
 
     /// Find tasks for a specific user (multi-user support)
-    pub async fn find_by_user(
-        pool: &SqlitePool,
-        user_id: &str,
-    ) -> Result<Vec<Self>, sqlx::Error> {
+    pub async fn find_by_user(pool: &SqlitePool, user_id: &str) -> Result<Vec<Self>, sqlx::Error> {
         sqlx::query_as!(
             Task,
             r#"
@@ -286,7 +283,7 @@ ORDER BY t.created_at DESC"#,
         pool: &SqlitePool,
         data: &CreateTask,
         task_id: Uuid,
-        user_id: &str,  // ✅ Added for multi-user support
+        user_id: &str, // ✅ Added for multi-user support
     ) -> Result<Self, sqlx::Error> {
         sqlx::query_as!(
             Task,

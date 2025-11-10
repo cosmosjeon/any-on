@@ -4,12 +4,14 @@ use std::{
     collections::HashMap,
     fs,
     path::{Path, PathBuf},
+    process::Stdio,
     sync::Arc,
     time::Duration,
 };
 
 use async_trait::async_trait;
 use bollard::models::HostConfig;
+use command_group::{AsyncCommandGroup, AsyncGroupChild};
 use dashmap::DashMap;
 use db::{
     DBService,
@@ -21,21 +23,18 @@ use db::{
 use executors::{
     actions::ExecutorAction,
     command::{CommandRuntime, ExecutionCommand, StdioConfig},
+    executors::ExecutorError,
 };
 use tokio::{process::Command, sync::RwLock};
-use utils::{log_msg::LogMsg, msg_store::MsgStore};
-use command_group::{AsyncCommandGroup, AsyncGroupChild};
-use std::process::Stdio;
+use utils::{log_msg::LogMsg, msg_store::MsgStore, path::get_anyon_temp_dir};
 use uuid::Uuid;
 
 use crate::services::{
     container::{ContainerError, ContainerRef, ContainerService},
     docker_poc::DockerHarness,
     git::GitService,
-    secret_store::{SecretStore, SECRET_CLAUDE_ACCESS, SECRET_GITHUB_OAUTH, SECRET_GITHUB_PAT},
+    secret_store::{SECRET_CLAUDE_ACCESS, SECRET_GITHUB_OAUTH, SECRET_GITHUB_PAT, SecretStore},
 };
-use executors::executors::ExecutorError;
-use utils::path::get_anyon_temp_dir;
 
 struct DockerCommandRuntime {
     container_id: String,
@@ -116,8 +115,9 @@ async fn write_secret_file(path: &Path, data: &[u8]) -> Result<(), ContainerErro
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use tempfile::tempdir;
+
+    use super::*;
 
     #[test]
     fn container_workdir_maps_to_workspace() {
@@ -148,11 +148,7 @@ mod tests {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mode = std::fs::metadata(&target)
-                .unwrap()
-                .permissions()
-                .mode()
-                & 0o777;
+            let mode = std::fs::metadata(&target).unwrap().permissions().mode() & 0o777;
             assert_eq!(mode, 0o600, "secret files should be 600");
         }
     }
@@ -264,8 +260,8 @@ where
             inner,
             docker: Arc::new(harness),
             settings: Arc::new(settings),
-             secret_store,
-             user_id,
+            secret_store,
+            user_id,
             provisioned: Arc::new(DashMap::new()),
             provision_lock: Arc::new(tokio::sync::Mutex::new(())),
         })
@@ -373,12 +369,10 @@ where
             fs::create_dir_all(&container.secret_dir)?;
         }
 
-        let mut env = vec![
-            (
-                "ANYON_SECRET_DIR".into(),
-                self.settings.secrets_mount.clone(),
-            ),
-        ];
+        let mut env = vec![(
+            "ANYON_SECRET_DIR".into(),
+            self.settings.secrets_mount.clone(),
+        )];
 
         if let Some(claude_blob) = self
             .secret_store
@@ -415,10 +409,8 @@ where
 
                 let gitconfig_path = container.secret_dir.join("gitconfig");
                 let helper_path = self.secret_mount_path("github-credentials");
-                let gitconfig_content = format!(
-                    "[credential]\n\thelper = store --file={}\n",
-                    helper_path
-                );
+                let gitconfig_content =
+                    format!("[credential]\n\thelper = store --file={}\n", helper_path);
                 write_secret_file(&gitconfig_path, gitconfig_content.as_bytes()).await?;
 
                 env.push((
@@ -536,12 +528,7 @@ where
         runtime: &dyn CommandRuntime,
     ) -> Result<(), ContainerError> {
         self.inner
-            .start_execution_with_runtime(
-                task_attempt,
-                execution_process,
-                executor_action,
-                runtime,
-            )
+            .start_execution_with_runtime(task_attempt, execution_process, executor_action, runtime)
             .await
     }
 
@@ -555,13 +542,12 @@ where
             let worktree_path = PathBuf::from(container_ref);
             self.ensure_runner(task_attempt, &worktree_path).await?;
         }
-        let provision = self
-            .provisioned
-            .get(&task_attempt.id)
-            .ok_or_else(|| ContainerError::Other(anyhow::anyhow!(
+        let provision = self.provisioned.get(&task_attempt.id).ok_or_else(|| {
+            ContainerError::Other(anyhow::anyhow!(
                 "Cloud container missing for attempt {}",
                 task_attempt.id
-            )))?;
+            ))
+        })?;
         let container_info = provision.clone();
         drop(provision);
 

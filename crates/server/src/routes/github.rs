@@ -1,6 +1,6 @@
 #![cfg(feature = "cloud")]
 
-use std::path::PathBuf;
+use std::{io, path::PathBuf};
 
 use axum::{
     Json, Router,
@@ -22,7 +22,10 @@ use ts_rs::TS;
 use utils::response::ApiResponse;
 use uuid::Uuid;
 
-use crate::DeploymentImpl;
+use crate::{
+    DeploymentImpl,
+    routes::projects::{INVALID_PROJECT_NAME_MESSAGE, contains_invalid_project_name_chars},
+};
 
 #[derive(Debug, Deserialize, TS)]
 pub struct CreateProjectFromGitHub {
@@ -96,7 +99,17 @@ pub async fn create_project_from_github(
     State(deployment): State<DeploymentImpl>,
     Json(payload): Json<CreateProjectFromGitHub>,
 ) -> Result<ResponseJson<ApiResponse<Project>>, StatusCode> {
-    tracing::debug!("Creating project '{}' from GitHub repository", payload.name);
+    let repo_name = payload.name.trim();
+    if repo_name.is_empty() {
+        return Ok(ResponseJson(ApiResponse::error("Project name is required")));
+    }
+    if contains_invalid_project_name_chars(repo_name) {
+        return Ok(ResponseJson(ApiResponse::error(
+            INVALID_PROJECT_NAME_MESSAGE,
+        )));
+    }
+
+    tracing::debug!("Creating project '{}' from GitHub repository", repo_name);
 
     // Get workspace path
     let workspace_path = match resolve_workspace_path(&deployment).await {
@@ -107,7 +120,7 @@ pub async fn create_project_from_github(
         }
     };
 
-    let target_path = workspace_path.join(&payload.name);
+    let target_path = workspace_path.join(repo_name);
 
     // Check if project directory already exists
     if target_path.exists() {
@@ -116,22 +129,32 @@ pub async fn create_project_from_github(
         )));
     }
 
-    // Check if git repo path is already used by another project
-    match Project::find_by_git_repo_path(&deployment.db().pool, &target_path.to_string_lossy())
-        .await
-    {
-        Ok(Some(_)) => {
-            return Ok(ResponseJson(ApiResponse::error(
-                "A project with this git repository path already exists",
-            )));
-        }
-        Ok(None) => {
-            // Path is available, continue
-        }
+    let repo_path_string = target_path.to_string_lossy().to_string();
+
+    let mut tx = match deployment.db().pool.begin().await {
+        Ok(tx) => tx,
         Err(e) => {
-            tracing::error!("Failed to check for existing git repo path: {}", e);
+            tracing::error!("Failed to start project creation transaction: {}", e);
             return Err(StatusCode::INTERNAL_SERVER_ERROR);
         }
+    };
+
+    let duplicate_for_user = sqlx::query_scalar::<_, i64>(
+        "SELECT 1 FROM projects WHERE user_id = ?1 AND git_repo_path = ?2",
+    )
+    .bind(deployment.user_id())
+    .bind(&repo_path_string)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to check for existing git repo path: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    if duplicate_for_user.is_some() {
+        return Ok(ResponseJson(ApiResponse::error(
+            "A project with this git repository path already exists",
+        )));
     }
 
     // Get GitHub token
@@ -166,8 +189,8 @@ pub async fn create_project_from_github(
     let has_setup_script = payload.setup_script.is_some();
     let has_dev_script = payload.dev_script.is_some();
     let project_data = CreateProject {
-        name: payload.name.clone(),
-        git_repo_path: target_path.to_string_lossy().to_string(),
+        name: repo_name.to_string(),
+        git_repo_path: repo_path_string,
         use_existing_repo: true, // Since we just cloned it
         setup_script: payload.setup_script,
         dev_script: payload.dev_script,
@@ -176,38 +199,54 @@ pub async fn create_project_from_github(
     };
 
     let project_id = Uuid::new_v4();
-    match Project::create(&deployment.db().pool, &project_data, project_id).await {
-        Ok(project) => {
-            // Track project creation event
-            deployment
-                .track_if_analytics_allowed(
-                    "project_created",
-                    json!({
-                        "project_id": project.id.to_string(),
-                        "repository_id": payload.repository_id,
-                        "clone_url": payload.clone_url,
-                        "has_setup_script": has_setup_script,
-                        "has_dev_script": has_dev_script,
-                        "trigger": "github",
-                    }),
-                )
-                .await;
-
-            Ok(ResponseJson(ApiResponse::success(project)))
-        }
-        Err(e) => {
-            tracing::error!("Failed to create project: {}", e);
-
-            // Clean up cloned repository if project creation failed
-            if target_path.exists() {
-                if let Err(cleanup_err) = std::fs::remove_dir_all(&target_path) {
-                    tracing::error!("Failed to cleanup cloned repository: {}", cleanup_err);
+    let project =
+        match Project::create(&mut *tx, &project_data, project_id, deployment.user_id()).await {
+            Ok(project) => {
+                if let Err(e) = tx.commit().await {
+                    tracing::error!("Failed to commit project creation transaction: {}", e);
+                    return Err(StatusCode::INTERNAL_SERVER_ERROR);
                 }
+                project
             }
+            Err(e) => {
+                tracing::error!("Failed to create project: {}", e);
 
-            Err(StatusCode::INTERNAL_SERVER_ERROR)
-        }
-    }
+                // Clean up cloned repository if project creation failed
+                if target_path.exists() {
+                    if let Err(cleanup_err) = std::fs::remove_dir_all(&target_path) {
+                        tracing::error!("Failed to cleanup cloned repository: {}", cleanup_err);
+                    }
+                }
+
+                if let sqlx::Error::Database(db_err) = &e {
+                    if db_err.message().contains(
+                        "UNIQUE constraint failed: projects.user_id, projects.git_repo_path",
+                    ) {
+                        return Ok(ResponseJson(ApiResponse::error(
+                            "A project with this git repository path already exists",
+                        )));
+                    }
+                }
+
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+        };
+
+    deployment
+        .track_if_analytics_allowed(
+            "project_created",
+            json!({
+                "project_id": project.id.to_string(),
+                "repository_id": payload.repository_id,
+                "clone_url": payload.clone_url,
+                "has_setup_script": has_setup_script,
+                "has_dev_script": has_dev_script,
+                "trigger": "github",
+            }),
+        )
+        .await;
+
+    Ok(ResponseJson(ApiResponse::success(project)))
 }
 
 /// Create router for GitHub-related endpoints (only registered in cloud mode)
@@ -217,8 +256,11 @@ pub fn github_router() -> Router<DeploymentImpl> {
         .route("/projects/from-github", post(create_project_from_github))
 }
 
-async fn resolve_workspace_path(deployment: &DeploymentImpl) -> Result<PathBuf, std::io::Error> {
-    let base_path = deployment.workspace_dir();
+async fn resolve_workspace_path(deployment: &DeploymentImpl) -> Result<PathBuf, io::Error> {
+    let base_path = deployment
+        .workspace_dir()
+        .await
+        .map_err(io::Error::from)?;
     fs::create_dir_all(&base_path).await?;
     Ok(base_path)
 }

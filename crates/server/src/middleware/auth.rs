@@ -4,17 +4,19 @@
 //! the authenticated user information into the request.
 
 use axum::{
+    body::Body,
     extract::State,
     http::{Request, StatusCode},
     middleware::Next,
     response::Response,
 };
+use deployment::Deployment;
 use services::services::{
     github_service::{GitHubService, GitHubServiceError},
     secret_store::SECRET_GITHUB_OAUTH,
 };
 
-use crate::{auth::AuthenticatedUser, DeploymentImpl};
+use crate::{DeploymentImpl, auth::AuthenticatedUser};
 
 /// Middleware that requires GitHub authentication
 ///
@@ -30,10 +32,10 @@ use crate::{auth::AuthenticatedUser, DeploymentImpl};
 ///     .route("/projects", get(get_projects))
 ///     .layer(from_fn_with_state(deployment.clone(), require_auth))
 /// ```
-pub async fn require_auth<B>(
+pub async fn require_auth(
     State(deployment): State<DeploymentImpl>,
-    mut req: Request<B>,
-    next: Next<B>,
+    mut req: Request<Body>,
+    next: Next,
 ) -> Result<Response, StatusCode> {
     // Step 1: Get GitHub token from SecretStore
     // "이 사용자가 GitHub 로그인 했을 때 받은 토큰을 가져옴"
@@ -90,11 +92,8 @@ pub async fn require_auth<B>(
 
     // Step 4: Create AuthenticatedUser and inject into request
     // "검증된 사용자 정보를 Request에 추가 → 핸들러에서 사용 가능"
-    let authenticated_user = AuthenticatedUser::from_github_user(
-        user.id,
-        user.login,
-        user.avatar_url,
-    );
+    let authenticated_user =
+        AuthenticatedUser::from_github_user(user.id, user.login, user.avatar_url);
 
     tracing::debug!(
         "Authenticated user: {} ({})",
