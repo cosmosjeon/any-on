@@ -29,7 +29,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { ChevronDown, Key, Loader2, Sparkles, Volume2 } from 'lucide-react';
 import {
   BaseCodingAgent,
-  EditorType,
   ExecutorProfileId,
   SoundFile,
   ThemeMode,

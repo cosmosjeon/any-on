@@ -35,8 +35,6 @@ export const ProjectFormDialog = NiceModal.create<ProjectFormDialogProps>(
     const [gitRepoPath, setGitRepoPath] = useState('');
     const [error, setError] = useState('');
     const [repoMode, setRepoMode] = useState<'existing' | 'new'>('new'); // Default to 'new' for Replit-style
-    const [parentPath, setParentPath] = useState('');
-    const [folderName, setFolderName] = useState('');
 
     const { createProject, createProjectFromGithub } = useProjectMutations({
       onCreateSuccess: () => {
@@ -125,8 +123,6 @@ export const ProjectFormDialog = NiceModal.create<ProjectFormDialogProps>(
       // Reset form
       setName('');
       setGitRepoPath('');
-      setParentPath('');
-      setFolderName('');
       setError('');
 
       modal.resolve('canceled' as ProjectFormDialogResult);
@@ -155,9 +151,6 @@ export const ProjectFormDialog = NiceModal.create<ProjectFormDialogProps>(
                 setRepoMode={setRepoMode}
                 gitRepoPath={gitRepoPath}
                 handleGitRepoPathChange={handleGitRepoPathChange}
-                parentPath={parentPath}
-                setParentPath={setParentPath}
-                setFolderName={setFolderName}
                 setName={setName}
                 name={name}
                 setupScript=""

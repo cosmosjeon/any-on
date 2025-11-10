@@ -21,8 +21,6 @@ import { SearchBar } from '@/components/search-bar';
 import { useSearch } from '@/contexts/search-context';
 import { openTaskForm } from '@/lib/openTaskForm';
 import { useProject } from '@/contexts/project-context';
-import { useOpenProjectInEditor } from '@/hooks/useOpenProjectInEditor';
-import { OpenInIdeButton } from '@/components/ide/OpenInIdeButton';
 
 const INTERNAL_NAV = [{ label: 'Projects', icon: FolderOpen, to: '/projects' }];
 
@@ -43,7 +41,6 @@ export function Navbar() {
   const location = useLocation();
   const { projectId, project } = useProject();
   const { query, setQuery, active, clear, registerInputRef } = useSearch();
-  const handleOpenInEditor = useOpenProjectInEditor(project || null);
 
   const setSearchBarRef = useCallback(
     (node: HTMLInputElement | null) => {
@@ -58,9 +55,6 @@ export function Navbar() {
     }
   };
 
-  const handleOpenInIDE = () => {
-    handleOpenInEditor();
-  };
 
   return (
     <div className="border-b bg-background">
@@ -85,7 +79,6 @@ export function Navbar() {
           <div className="flex-1 flex justify-end">
             {projectId && (
               <>
-                <OpenInIdeButton onClick={handleOpenInIDE} />
                 <Button
                   variant="ghost"
                   size="icon"
