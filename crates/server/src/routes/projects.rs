@@ -22,7 +22,7 @@ use utils::{path::expand_tilde, response::ApiResponse};
 use uuid::Uuid;
 use tokio::fs;
 
-use crate::{DeploymentImpl, error::ApiError, middleware::load_project_middleware};
+use crate::{auth::AuthenticatedUser, DeploymentImpl, error::ApiError, middleware::load_project_middleware};
 
 async fn resolve_workspace_path(deployment: &DeploymentImpl) -> Result<PathBuf, std::io::Error> {
     let base_path = deployment.workspace_dir();
@@ -30,10 +30,20 @@ async fn resolve_workspace_path(deployment: &DeploymentImpl) -> Result<PathBuf, 
     Ok(base_path)
 }
 
+/// Get all projects for the authenticated user
 pub async fn get_projects(
     State(deployment): State<DeploymentImpl>,
+    Extension(user): Extension<AuthenticatedUser>,  // ✅ 추가
 ) -> Result<ResponseJson<ApiResponse<Vec<Project>>>, ApiError> {
-    let projects = Project::find_all(&deployment.db().pool).await?;
+    // ✅ find_by_user로 변경 (이 사용자의 프로젝트만)
+    let projects = Project::find_by_user(&deployment.db().pool, &user.user_id).await?;
+
+    tracing::debug!(
+        "User {} retrieved {} projects",
+        user.username,
+        projects.len()
+    );
+
     Ok(ResponseJson(ApiResponse::success(projects)))
 }
 
@@ -51,8 +61,10 @@ pub async fn get_project_branches(
     Ok(ResponseJson(ApiResponse::success(branches)))
 }
 
+/// Create a new project for the authenticated user
 pub async fn create_project(
     State(deployment): State<DeploymentImpl>,
+    Extension(user): Extension<AuthenticatedUser>,  // ✅ 추가
     Json(payload): Json<CreateProject>,
 ) -> Result<ResponseJson<ApiResponse<Project>>, ApiError> {
     let id = Uuid::new_v4();
@@ -158,6 +170,7 @@ pub async fn create_project(
             copy_files,
         },
         id,
+        &user.user_id,  // ✅ 추가: 이 프로젝트의 소유자
     )
     .await
     {
@@ -478,7 +491,12 @@ pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
 
     let projects_router = Router::new()
         .route("/", get(get_projects).post(create_project))
-        .nest("/{id}", project_id_router);
+        .nest("/{id}", project_id_router)
+        // ✅ 모든 프로젝트 API에 인증 미들웨어 적용
+        .layer(from_fn_with_state(
+            deployment.clone(),
+            crate::middleware::auth::require_auth,
+        ));
 
     Router::new().nest("/projects", projects_router)
 }
