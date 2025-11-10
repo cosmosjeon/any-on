@@ -24,7 +24,6 @@ import {
   ProvidePatDialog,
   ReleaseNotesDialog,
   TaskFormDialog,
-  EditorSelectionDialog,
   DeleteTaskConfirmationDialog,
   FolderPickerDialog,
   TagEditDialog,
@@ -33,7 +32,6 @@ import {
   CreateConfigurationDialog,
   DeleteConfigurationDialog,
   ProjectFormDialog,
-  ProjectEditorSelectionDialog,
   RestoreLogsDialog,
   ViewProcessesDialog,
   GitActionsDialog,
@@ -53,7 +51,6 @@ NiceModal.register('provide-pat', ProvidePatDialog);
 NiceModal.register('release-notes', ReleaseNotesDialog);
 NiceModal.register('delete-task-confirmation', DeleteTaskConfirmationDialog);
 NiceModal.register('task-form', TaskFormDialog);
-NiceModal.register('editor-selection', EditorSelectionDialog);
 NiceModal.register('folder-picker', FolderPickerDialog);
 NiceModal.register('tag-edit', TagEditDialog);
 NiceModal.register('change-target-branch-dialog', ChangeTargetBranchDialog);
@@ -61,7 +58,6 @@ NiceModal.register('rebase-dialog', RebaseDialog);
 NiceModal.register('create-configuration', CreateConfigurationDialog);
 NiceModal.register('delete-configuration', DeleteConfigurationDialog);
 NiceModal.register('project-form', ProjectFormDialog);
-NiceModal.register('project-editor-selection', ProjectEditorSelectionDialog);
 NiceModal.register('restore-logs', RestoreLogsDialog);
 NiceModal.register('view-processes', ViewProcessesDialog);
 NiceModal.register('create-attempt', CreateAttemptDialog);

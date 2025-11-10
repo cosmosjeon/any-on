@@ -16,13 +16,11 @@ import {
   Calendar,
   Edit,
   ExternalLink,
-  FolderOpen,
   MoreHorizontal,
   Trash2,
 } from 'lucide-react';
 import { Project } from 'shared/types';
 import { useEffect, useRef } from 'react';
-import { useOpenProjectInEditor } from '@/hooks/useOpenProjectInEditor';
 import { useNavigateWithSearch } from '@/hooks';
 import { projectsApi } from '@/lib/api';
 
@@ -43,7 +41,6 @@ function ProjectCard({
 }: Props) {
   const navigate = useNavigateWithSearch();
   const ref = useRef<HTMLDivElement>(null);
-  const handleOpenInEditor = useOpenProjectInEditor(project);
 
   useEffect(() => {
     if (isFocused && ref.current) {
@@ -73,9 +70,6 @@ function ProjectCard({
     onEdit(project);
   };
 
-  const handleOpenInIDE = () => {
-    handleOpenInEditor();
-  };
 
   return (
     <Card
@@ -104,15 +98,6 @@ function ProjectCard({
                 >
                   <ExternalLink className="mr-2 h-4 w-4" />
                   View Project
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleOpenInIDE();
-                  }}
-                >
-                  <FolderOpen className="mr-2 h-4 w-4" />
-                  Open in IDE
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={(e) => {

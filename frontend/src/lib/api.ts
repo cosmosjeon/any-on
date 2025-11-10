@@ -17,7 +17,6 @@ import {
   DevicePollStatus,
   DirectoryListResponse,
   DirectoryEntry,
-  EditorType,
   ExecutionProcess,
   GitBranch,
   Project,

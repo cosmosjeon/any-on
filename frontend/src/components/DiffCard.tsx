@@ -16,7 +16,6 @@ import {
   PencilLine,
   Copy,
   Key,
-  ExternalLink,
   MessageSquare,
 } from 'lucide-react';
 import '@/styles/diff-style-overrides.css';
@@ -72,7 +71,7 @@ export default function DiffCard({
   diff,
   expanded,
   onToggle,
-  selectedAttempt,
+  selectedAttempt: _selectedAttempt,
 }: Props) {
   const { config } = useUserSystem();
   const theme = getActualTheme(config?.theme);
@@ -257,19 +256,6 @@ export default function DiffCard({
           </Button>
         )}
         {title}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleOpenInIDE();
-          }}
-          className="h-6 w-6 p-0 ml-2"
-          title="Open in IDE"
-          disabled={diff.change === 'deleted'}
-        >
-          <ExternalLink className="h-3 w-3" aria-hidden />
-        </Button>
       </div>
 
       {expanded && diffFile && (

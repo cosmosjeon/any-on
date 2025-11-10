@@ -27,9 +27,6 @@ interface ProjectFormFieldsProps {
   setRepoMode: (mode: 'existing' | 'new') => void;
   gitRepoPath: string;
   handleGitRepoPathChange: (path: string) => void;
-  parentPath: string;
-  setParentPath: (path: string) => void;
-  setFolderName: (name: string) => void;
   setName: (name: string) => void;
   name: string;
   setupScript: string;
@@ -57,9 +54,6 @@ export function ProjectFormFields({
   setRepoMode,
   gitRepoPath,
   handleGitRepoPathChange,
-  parentPath,
-  setParentPath,
-  setFolderName,
   setName,
   name,
   setupScript,
@@ -510,8 +504,6 @@ const loadRecentRepos = async () => {
               setSelectionView('options');
               setError('');
               setName('');
-              setParentPath('');
-              setFolderName('');
             }}
             className="flex items-center gap-2"
           >

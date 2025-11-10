@@ -15,6 +15,7 @@ import NiceModal from '@ebay/nice-modal-react';
 import { useDiffSummary } from '@/hooks/useDiffSummary';
 import { useDevServer } from '@/hooks/useDevServer';
 import { Button } from '@/components/ui/button';
+import { useUserSystem } from '@/components/config-provider';
 import { useProject } from '@/contexts/project-context';
 import { useQuery } from '@tanstack/react-query';
 import { attemptsApi } from '@/lib/api';
@@ -44,7 +45,7 @@ export function NextActionCard({
   needsSetup,
 }: NextActionCardProps) {
   const { t } = useTranslation('tasks');
-  const { config } = useUserSystem();
+  const { capabilities } = useUserSystem();
   const { project } = useProject();
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
@@ -54,7 +55,6 @@ export function NextActionCard({
     queryFn: () => attemptsApi.get(attemptId!),
     enabled: !!attemptId && failed,
   });
-  const { capabilities } = useUserSystem();
   const { fileCount, added, deleted, error } = useDiffSummary(
     attemptId ?? null
   );

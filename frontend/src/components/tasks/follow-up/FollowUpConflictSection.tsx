@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { ConflictBanner } from '@/components/tasks/ConflictBanner';
-import { useOpenInEditor } from '@/hooks/useOpenInEditor';
 import { useAttemptConflicts } from '@/hooks/useAttemptConflicts';
 import type { BranchStatus } from 'shared/types';
 
@@ -25,7 +24,6 @@ export function FollowUpConflictSection({
   conflictResolutionInstructions,
 }: Props) {
   const op = branchStatus.conflict_op ?? null;
-  const openInEditor = useOpenInEditor(selectedAttemptId);
   const { abortConflicts } = useAttemptConflicts(selectedAttemptId);
 
   // write using setAborting and read through abortingRef in async handlers
@@ -51,9 +49,7 @@ export function FollowUpConflictSection({
         onResolve={onResolve}
         enableResolve={enableResolve && !aborting}
         onOpenEditor={() => {
-          if (!selectedAttemptId) return;
-          const first = branchStatus.conflicted_files?.[0];
-          openInEditor(first ? { filePath: first } : undefined);
+          // Editor opening disabled in web version
         }}
         onAbort={async () => {
           if (!selectedAttemptId) return;

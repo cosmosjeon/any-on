@@ -10,7 +10,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { MoreHorizontal } from 'lucide-react';
 import type { TaskWithAttemptStatus, TaskAttempt } from 'shared/types';
-import { useOpenInEditor } from '@/hooks/useOpenInEditor';
 import NiceModal from '@ebay/nice-modal-react';
 import { useProject } from '@/contexts/project-context';
 import { openTaskForm } from '@/lib/openTaskForm';
@@ -25,7 +24,6 @@ interface ActionsDropdownProps {
 export function ActionsDropdown({ task, attempt }: ActionsDropdownProps) {
   const { t } = useTranslation('tasks');
   const { projectId } = useProject();
-  const openInEditor = useOpenInEditor(attempt?.id);
   const navigate = useNavigate();
 
   const hasAttemptActions = Boolean(attempt);
@@ -56,11 +54,6 @@ export function ActionsDropdown({ task, attempt }: ActionsDropdownProps) {
     }
   };
 
-  const handleOpenInEditor = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!attempt?.id) return;
-    openInEditor();
-  };
 
   const handleViewProcesses = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -139,12 +132,6 @@ export function ActionsDropdown({ task, attempt }: ActionsDropdownProps) {
           {hasAttemptActions && (
             <>
               <DropdownMenuLabel>{t('actionsMenu.attempt')}</DropdownMenuLabel>
-              <DropdownMenuItem
-                disabled={!attempt?.id}
-                onClick={handleOpenInEditor}
-              >
-                {t('actionsMenu.openInIde')}
-              </DropdownMenuItem>
               <DropdownMenuItem
                 disabled={!attempt?.id}
                 onClick={handleViewProcesses}
