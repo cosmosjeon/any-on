@@ -60,7 +60,7 @@ export function GeneralSettings() {
     profiles,
     githubSecretState,
     claudeSecretState,
-    isCloud,
+    isCloud: _isCloud, // Unused but kept for future use
     reloadSystem,
   } = useUserSystem();
 

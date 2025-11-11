@@ -137,3 +137,32 @@ When running Anyon on a remote server (e.g., via systemctl, Docker, or cloud hos
 When configured, the "Open in VSCode" buttons will generate URLs like `vscode://vscode-remote/ssh-remote+user@host/path` that open your local editor and connect to the remote server.
 
 See the [documentation](https://anyon.dev/docs/configuration-customisation/global-settings#remote-ssh-configuration) for detailed setup instructions.
+
+### Cloud Backend with Local Frontend Development
+
+You can deploy the backend to a cloud VM while running the frontend locally for rapid development:
+
+#### Quick Start
+
+**On Cloud VM (Backend):**
+```bash
+# 1. Clone repository
+git clone https://github.com/cosmos/any-on.git && cd any-on
+
+# 2. Configure .env.cloud (set HOST=0.0.0.0)
+# See CLOUD_DEPLOYMENT_GUIDE.md for details
+
+# 3. Deploy with script
+./scripts/deploy-cloud.sh
+```
+
+**On Local PC (Frontend):**
+```bash
+# 1. Update .env - set BACKEND_HOST to your VM IP
+# Example: BACKEND_HOST=123.45.67.89
+
+# 2. Start frontend
+./scripts/start-local-frontend.sh
+```
+
+For detailed instructions, troubleshooting, and security recommendations, see [CLOUD_DEPLOYMENT_GUIDE.md](./CLOUD_DEPLOYMENT_GUIDE.md).
