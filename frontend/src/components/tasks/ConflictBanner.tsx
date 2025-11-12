@@ -61,13 +61,13 @@ export function ConflictBanner({
 
   return (
     <div
-      className="flex flex-col gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-warning-foreground dark:text-warning"
+      className="flex flex-col gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-amber-700 dark:text-amber-300"
       role="status"
       aria-live="polite"
     >
       <div className="flex items-start gap-2">
         <AlertCircle
-          className="mt-0.5 h-4 w-4 text-warning dark:text-warning/90"
+          className="mt-0.5 h-4 w-4 text-amber-600 dark:text-amber-400"
           aria-hidden
         />
         <div className="text-sm leading-relaxed">
@@ -77,7 +77,7 @@ export function ConflictBanner({
             until you resolve the conflicts or abort the {opTitleLower}.
           </span>
           {visibleFiles.length > 0 && (
-            <div className="mt-1 text-xs text-warning-foreground/90 dark:text-warning/80">
+            <div className="mt-1 text-xs text-amber-700/90 dark:text-amber-300/80">
               <div className="font-medium">
                 Conflicted files ({visibleFiles.length}
                 {hasMore ? ` of ${total}` : ''}):
@@ -100,7 +100,7 @@ export function ConflictBanner({
             size="sm"
             onClick={onResolve}
             disabled={!enableResolve}
-            className="bg-warning text-warning-foreground hover:bg-warning/90"
+            className="bg-amber-500 text-white hover:bg-amber-600"
           >
             Resolve conflicts
           </Button>
@@ -108,7 +108,7 @@ export function ConflictBanner({
         <Button
           size="sm"
           variant="outline"
-          className="border-warning/40 text-warning-foreground hover:bg-warning/10 dark:text-warning/90"
+          className="border-amber-500/40 text-amber-700 hover:bg-amber-500/10 dark:text-amber-300"
           onClick={onOpenEditor}
         >
           Open in Editor
