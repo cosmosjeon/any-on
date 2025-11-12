@@ -1,166 +1,53 @@
-# .claude Directory
+# .claude/ - Claude Code 전용 문서
 
-**Documentation and rules for Claude Code and developers working on this project.**
+**⚠️ 이 폴더는 Claude Code와 AI 어시스턴트만을 위한 문서입니다.**
+
+일반 개발자 문서는 `/docs` 폴더를 참조하세요.
 
 ---
 
-## 📁 Structure
+## 📁 구조
 
 ```
 .claude/
-├── README.md              # This file
-├── rules/                 # Development rules and architecture guidelines
-│   ├── 01-critical-rules.md   # MUST-FOLLOW rules (type sync, migrations)
-│   ├── 02-frontend.md         # Frontend architecture (React, TypeScript)
-│   ├── 03-backend.md          # Backend architecture (Rust) [TBD]
-│   └── 04-code-quality.md     # TDD, Clean Code, best practices
-└── workflows/             # Common workflows and commands
-    ├── commands.md            # Essential commands reference
-    └── development.md         # Development workflows [TBD]
+├── README.md                        # 이 파일
+├── CRITICAL-RULES.md                # 🚨 필수 개발 룰
+├── architecture/
+│   ├── frontend.md                  # 프론트엔드 아키텍처 (33 rules)
+│   ├── backend.md                   # 백엔드 아키텍처 [TBD]
+│   └── code-quality.md              # TDD, Clean Code 원칙
+└── guides/
+    ├── commands.md                  # 자주 쓰는 명령어
+    ├── frontend-first.md            # 프론트엔드 우선 개발 가이드
+    └── development.md               # 일반 개발 워크플로우 [TBD]
 ```
-
----
-
-## 🚀 Quick Start for New Contributors
-
-1. **Read critical rules first**: `.claude/rules/01-critical-rules.md`
-   - Type synchronization (Rust → TypeScript)
-   - Database migration rules
-   - Development workflow
-
-2. **Check architecture for your area**:
-   - Frontend work? → `.claude/rules/02-frontend.md`
-   - Backend work? → `.claude/rules/03-backend.md` (coming soon)
-
-3. **Follow code quality standards**: `.claude/rules/04-code-quality.md`
-   - TDD process
-   - Clean Code principles
-   - Naming conventions
-
-4. **Reference commands**: `.claude/workflows/commands.md`
-   - Common commands
-   - Troubleshooting
-   - Workflows
-
----
-
-## 📖 When to Read Each Document
-
-### Before Writing ANY Code
-→ `.claude/rules/01-critical-rules.md`
-- Understand type synchronization
-- Learn migration rules
-- Know the workflow
-
-### Before Writing Frontend Code
-→ `.claude/rules/02-frontend.md`
-- Component structure
-- State management patterns
-- API client usage
-- Testing approach
-
-### Before Writing Backend Code
-→ `.claude/rules/03-backend.md` [TBD]
-- API structure
-- Database patterns
-- Error handling
-
-### When Reviewing Code
-→ `.claude/rules/04-code-quality.md`
-- TDD checklist
-- Clean Code principles
-- Common anti-patterns
-
-### When Stuck
-→ `.claude/workflows/commands.md`
-- Find the right command
-- Troubleshooting tips
-- Common workflows
-
----
-
-## 🔍 Finding What You Need
-
-### "How do I...?"
-
-- **...add a new API endpoint?** → `.claude/workflows/commands.md` (Common Workflows)
-- **...modify the database?** → `.claude/rules/01-critical-rules.md` (Rule #2)
-- **...use state management?** → `.claude/rules/02-frontend.md` (Rule #4-7)
-- **...write tests?** → `.claude/rules/04-code-quality.md` (TDD section)
-- **...handle errors?** → `.claude/rules/04-code-quality.md` (Error Handling)
-- **...name variables?** → `.claude/rules/04-code-quality.md` (Naming Conventions)
-
-### "What's the rule for...?"
-
-- **Type synchronization?** → `.claude/rules/01-critical-rules.md` (Rule #1)
-- **Database migrations?** → `.claude/rules/01-critical-rules.md` (Rule #2)
-- **Component size?** → `.claude/rules/02-frontend.md` (Rule #3)
-- **Any types?** → `.claude/rules/02-frontend.md` (Rule #1)
-- **Function length?** → `.claude/rules/04-code-quality.md` (Functions & Methods)
 
 ---
 
 ## 🤖 For Claude Code
 
-When working on this project:
+이 디렉토리의 모든 문서는 코드 작성 시 참조해야 하는 룰과 가이드입니다.
 
-1. **Always check critical rules first** (`.claude/rules/01-critical-rules.md`)
-2. **Follow architecture for the area you're modifying**:
-   - Frontend → `.claude/rules/02-frontend.md`
-   - Backend → `.claude/rules/03-backend.md`
-3. **Maintain code quality standards** (`.claude/rules/04-code-quality.md`)
-4. **Use correct commands** (`.claude/workflows/commands.md`)
-
-### Priority Order
-
-1. 🚨 Critical Rules (violations break builds)
-2. 🏗️ Architecture Rules (maintain consistency)
-3. ✨ Code Quality (maintainability)
-4. 📝 Documentation (clarity)
+**우선순위:**
+1. 🚨 `CRITICAL-RULES.md` - 반드시 따라야 함
+2. 🏗️ `architecture/` - 해당 영역 작업 시 참조
+3. 📖 `guides/` - 필요 시 참조
 
 ---
 
-## 📝 Document Maintenance
+## 👨‍💻 For Human Developers
 
-### When to Update
+이 폴더는 AI 어시스턴트가 코드를 작성할 때 참조하는 룰입니다.
 
-**Critical Rules** - When:
-- Type generation process changes
-- Migration strategy changes
-- Core workflow changes
+**사람이 읽을 문서:**
+- 프로젝트 README: `/README.md`
+- 사용자 문서: `/docs` (Mintlify)
+- API 문서: [별도 위치]
 
-**Architecture Rules** - When:
-- New patterns are established
-- Technology choices change
-- Best practices evolve
-
-**Code Quality** - When:
-- Team agrees on new standards
-- New tools are adopted
-- Lessons learned from issues
-
-**Commands** - When:
-- New commands are added
-- Tool versions change
-- Workflows are optimized
-
-### How to Update
-
-1. Edit the relevant `.md` file in `.claude/`
-2. Ensure examples are accurate
-3. Update `CLAUDE.md` if overview needs changes
-4. Commit with: `docs: update <area> rules`
-
----
-
-## 🔗 Related Files
-
-- `/CLAUDE.md` - Main overview and quick reference
-- `/README.md` - Project README for users
-- `/frontend/package.json` - Frontend scripts
-- `/Cargo.toml` - Backend configuration
+**CLAUDE.md vs .claude/ 차이:**
+- `CLAUDE.md`: 간결한 인덱스 및 핵심 룰 요약
+- `.claude/`: 상세한 룰, 가이드, 예제 코드
 
 ---
 
 **Last Updated:** 2025-11-12
-**Maintainers:** Engineering Team
