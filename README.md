@@ -111,7 +111,7 @@ The following environment variables can be configured at build time or runtime:
 
 #### Custom GitHub OAuth App (Optional)
 
-By default, Anyon uses Bloop AI's GitHub OAuth app for authentication. To use your own GitHub app for self-hosting or custom branding:
+By default, Anyon uses Slit's GitHub OAuth app for authentication. To use your own GitHub app for self-hosting or custom branding:
 
 1. Create a GitHub OAuth App at [GitHub Developer Settings](https://github.com/settings/developers)
 2. Enable "Device Flow" in the app settings

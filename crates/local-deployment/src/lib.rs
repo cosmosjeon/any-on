@@ -52,6 +52,7 @@ pub struct LocalDeployment {
     drafts: DraftsService,
     secret_store: SecretStore,
     claude_auth: ClaudeAuthManager,
+    claude_auth_pty: services::services::claude_auth_pty::ClaudePtyManager,
     github_user_cache: GitHubUserCache,
 }
 
@@ -122,6 +123,7 @@ impl Deployment for LocalDeployment {
         }
 
         let claude_auth = ClaudeAuthManager::new(secret_store.clone(), user_id.clone());
+        let claude_auth_pty = services::services::claude_auth_pty::ClaudePtyManager::new(Arc::new(secret_store.clone()));
 
         let approvals = Approvals::new(msg_stores.clone());
 
@@ -164,6 +166,7 @@ impl Deployment for LocalDeployment {
             drafts,
             secret_store,
             claude_auth,
+            claude_auth_pty,
             github_user_cache,
         })
     }
@@ -233,6 +236,10 @@ impl Deployment for LocalDeployment {
 
     fn claude_auth(&self) -> &ClaudeAuthManager {
         &self.claude_auth
+    }
+
+    fn claude_auth_pty(&self) -> &services::services::claude_auth_pty::ClaudePtyManager {
+        &self.claude_auth_pty
     }
 
     fn github_user_cache(&self) -> &GitHubUserCache {

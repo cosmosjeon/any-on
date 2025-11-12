@@ -1,0 +1,4 @@
+Error: Deployment(Other(Failed to create data dir: /var/opt/anyon/data
+
+Caused by:
+    Permission denied (os error 13)))

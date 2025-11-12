@@ -129,6 +129,8 @@ pub trait Deployment: Clone + Send + Sync + 'static {
 
     fn claude_auth(&self) -> &ClaudeAuthManager;
 
+    fn claude_auth_pty(&self) -> &services::services::claude_auth_pty::ClaudePtyManager;
+
     /// GitHub user cache for reducing GitHub API calls
     fn github_user_cache(&self) -> &services::services::github_user_cache::GitHubUserCache;
 

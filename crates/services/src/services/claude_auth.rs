@@ -21,7 +21,7 @@ use uuid::Uuid;
 
 use crate::services::secret_store::{SECRET_CLAUDE_ACCESS, SecretStore, SecretStoreError};
 
-const CLAUDE_LOGIN_DEFAULT_CMD: &str = "npx -y @anthropic-ai/claude-code@2.0.31 login";
+const CLAUDE_LOGIN_DEFAULT_CMD: &str = "unbuffer npx -y @anthropic-ai/claude-code@2.0.31 login";
 
 #[derive(Debug, Error)]
 pub enum ClaudeAuthError {
@@ -358,6 +358,7 @@ impl ClaudeAuthManager {
             if trimmed.is_empty() {
                 continue;
             }
+            tracing::info!(input = %trimmed, "Sending input to Claude CLI");
             let mut guard = handle.lock().await;
             if let Some(stdin) = guard.as_mut() {
                 if stdin
@@ -365,10 +366,16 @@ impl ClaudeAuthManager {
                     .await
                     .is_err()
                 {
+                    tracing::error!("Failed to write to Claude CLI stdin");
                     break;
                 }
-                let _ = stdin.flush().await;
+                if let Err(e) = stdin.flush().await {
+                    tracing::error!(error = %e, "Failed to flush Claude CLI stdin");
+                    break;
+                }
+                tracing::info!("Successfully sent input to Claude CLI");
             } else {
+                tracing::warn!("Claude CLI stdin handle is None");
                 break;
             }
         }

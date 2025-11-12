@@ -1,6 +1,6 @@
 use axum::{
     Json, Router,
-    extract::{Path, Request, State},
+    extract::{Path, Request, State, ws::{WebSocket, WebSocketUpgrade}},
     http::StatusCode,
     middleware::{Next, from_fn_with_state},
     response::{
@@ -9,11 +9,11 @@ use axum::{
     },
     routing::{get, post},
 };
+use futures_util::{sink::SinkExt, stream::StreamExt};
 use db::models::{
     draft::Draft, image::Image, project::Project, tag::Tag, task::Task, task_attempt::TaskAttempt,
 };
 use deployment::{Deployment, DeploymentError};
-use futures_util::StreamExt;
 use octocrab::auth::Continue;
 use serde::{Deserialize, Serialize};
 use services::services::{
@@ -46,6 +46,7 @@ pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
             post(claude_session_cancel),
         )
         .route("/auth/claude/logout", post(claude_logout))
+        .route("/auth/claude/pty", get(claude_pty_websocket))
         .layer(from_fn_with_state(
             deployment.clone(),
             sentry_user_context_middleware,
@@ -394,6 +395,117 @@ async fn claude_logout(
         .delete_secret(deployment.user_id(), SECRET_CLAUDE_ACCESS)
         .await?;
     Ok(ResponseJson(ApiResponse::success(())))
+}
+
+/// WebSocket endpoint for PTY-based Claude login
+async fn claude_pty_websocket(
+    ws: WebSocketUpgrade,
+    State(deployment): State<DeploymentImpl>,
+) -> Response {
+    ws.on_upgrade(move |socket| handle_claude_pty(socket, deployment))
+}
+
+async fn handle_claude_pty(mut socket: WebSocket, deployment: DeploymentImpl) {
+    // Start PTY session
+    let session_id = match deployment.claude_auth_pty().start_session(deployment.user_id()).await {
+        Ok(id) => id,
+        Err(e) => {
+            tracing::error!(error = %e, "Failed to start PTY session");
+            let _ = socket.send(axum::extract::ws::Message::Text(format!("Error: {}", e).into())).await;
+            return;
+        }
+    };
+
+    tracing::info!(session_id = %session_id, "PTY session started");
+
+    // Spawn task to read from PTY and send to WebSocket
+    let deployment_clone = deployment.clone();
+    let deployment_check = deployment.clone();
+    let user_id = deployment.user_id().to_string();
+    let (mut ws_sender, mut ws_receiver) = socket.split();
+    let (success_tx, mut success_rx) = tokio::sync::mpsc::channel::<()>(1);
+
+    let read_task = tokio::spawn(async move {
+        let mut buf = vec![0u8; 8192];
+        loop {
+            tokio::select! {
+                result = deployment_clone.claude_auth_pty().read_output(&session_id, &mut buf) => {
+                    match result {
+                        Ok(0) => break, // EOF
+                        Ok(n) => {
+                            if ws_sender
+                                .send(axum::extract::ws::Message::Binary(buf[..n].to_vec().into()))
+                                .await
+                                .is_err()
+                            {
+                                break;
+                            }
+                        }
+                        Err(e) => {
+                            tracing::error!(error = %e, "Failed to read from PTY");
+                            break;
+                        }
+                    }
+                }
+                _ = success_rx.recv() => {
+                    // Send success message to frontend
+                    let success_msg = "\r\n\r\n✅ 로그인 성공! Credential이 저장되었습니다.\r\n";
+                    let _ = ws_sender.send(axum::extract::ws::Message::Text(success_msg.into())).await;
+                    break;
+                }
+            }
+        }
+    });
+
+    // Spawn task to check for login success
+    let check_task = tokio::spawn(async move {
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(2));
+        loop {
+            interval.tick().await;
+            match deployment_check.claude_auth_pty().check_login_success(&session_id, &user_id).await {
+                Ok(true) => {
+                    tracing::info!("Login success detected");
+                    let _ = success_tx.send(()).await;
+                    break;
+                }
+                Ok(false) => continue,
+                Err(e) => {
+                    tracing::error!(error = %e, "Failed to check login success");
+                    break;
+                }
+            }
+        }
+    });
+
+    // Read from WebSocket and write to PTY
+    while let Some(msg) = ws_receiver.next().await {
+        match msg {
+            Ok(axum::extract::ws::Message::Binary(data)) => {
+                if let Err(e) = deployment.claude_auth_pty().write_input(&session_id, &data).await {
+                    tracing::error!(error = %e, "Failed to write to PTY");
+                    break;
+                }
+            }
+            Ok(axum::extract::ws::Message::Text(data)) => {
+                let data_bytes = data.as_bytes();
+                if let Err(e) = deployment.claude_auth_pty().write_input(&session_id, data_bytes).await {
+                    tracing::error!(error = %e, "Failed to write to PTY");
+                    break;
+                }
+            }
+            Ok(axum::extract::ws::Message::Close(_)) => break,
+            Err(e) => {
+                tracing::error!(error = %e, "WebSocket error");
+                break;
+            }
+            _ => {}
+        }
+    }
+
+    // Cleanup
+    let _ = deployment.claude_auth_pty().cancel_session(&session_id).await;
+    read_task.abort();
+    check_task.abort();
 }
 
 /// Middleware to set Sentry user context for every request

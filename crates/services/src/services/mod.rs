@@ -2,6 +2,7 @@ pub mod analytics;
 pub mod approvals;
 pub mod auth;
 pub mod claude_auth;
+pub mod claude_auth_pty;
 #[cfg(feature = "cloud")]
 pub mod cloud_container;
 pub mod config;

@@ -7,7 +7,7 @@
     "anyon": "bin/cli.js"
   },
   "keywords": [],
-  "author": "bloop",
+  "author": "slit",
   "license": "",
   "description": "NPX wrapper around anyon and anyon-mcp",
   "dependencies": {

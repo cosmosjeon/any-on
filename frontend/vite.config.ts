@@ -52,7 +52,7 @@ export default schemas;
 export default defineConfig({
   plugins: [
     react(),
-    sentryVitePlugin({ org: "bloop-ai", project: "anyon" }),
+    sentryVitePlugin({ org: "slit", project: "anyon" }),
     executorSchemasPlugin(),
   ],
   resolve: {
