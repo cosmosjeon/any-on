@@ -1,6 +1,9 @@
 use axum::{
     Json, Router,
-    extract::{Path, Request, State, ws::{WebSocket, WebSocketUpgrade}},
+    extract::{
+        Path, Request, State,
+        ws::{WebSocket, WebSocketUpgrade},
+    },
     http::StatusCode,
     middleware::{Next, from_fn_with_state},
     response::{
@@ -9,15 +12,16 @@ use axum::{
     },
     routing::{get, post},
 };
-use futures_util::{sink::SinkExt, stream::StreamExt};
 use db::models::{
     draft::Draft, image::Image, project::Project, tag::Tag, task::Task, task_attempt::TaskAttempt,
 };
 use deployment::{Deployment, DeploymentError};
+use futures_util::{sink::SinkExt, stream::StreamExt};
 use octocrab::auth::Continue;
 use serde::{Deserialize, Serialize};
 use services::services::{
     auth::{AuthError, DeviceFlowStartResponse},
+    claude_auth_pty::ClaudePtyLogEntry,
     config::save_config_to_file,
     github_service::{GitHubService, GitHubServiceError},
     secret_store::{SECRET_CLAUDE_ACCESS, SECRET_GITHUB_OAUTH},
@@ -47,6 +51,10 @@ pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
         )
         .route("/auth/claude/logout", post(claude_logout))
         .route("/auth/claude/pty", get(claude_pty_websocket))
+        .route(
+            "/auth/claude/pty/session/{session_id}/log",
+            get(claude_pty_session_log),
+        )
         .layer(from_fn_with_state(
             deployment.clone(),
             sentry_user_context_middleware,
@@ -87,6 +95,13 @@ pub struct ClaudeSessionResponse {
 #[derive(Serialize, Deserialize, ts_rs::TS)]
 pub struct ClaudeSessionInput {
     pub input: String,
+}
+
+#[derive(Serialize)]
+pub struct ClaudePtySessionLogResponse {
+    #[serde(rename = "session_id")]
+    pub session_id: Uuid,
+    pub entries: Vec<ClaudePtyLogEntry>,
 }
 
 /// POST /auth/github/device/poll
@@ -405,13 +420,39 @@ async fn claude_pty_websocket(
     ws.on_upgrade(move |socket| handle_claude_pty(socket, deployment))
 }
 
+async fn claude_pty_session_log(
+    Path(session_id): Path<Uuid>,
+    State(deployment): State<DeploymentImpl>,
+) -> Result<ResponseJson<ApiResponse<ClaudePtySessionLogResponse>>, ApiError> {
+    let entries = deployment
+        .claude_auth_pty()
+        .get_logs(&session_id)
+        .await
+        .map_err(|err| ApiError::Deployment(DeploymentError::Other(err.into())))?;
+
+    let response = ClaudePtySessionLogResponse {
+        session_id,
+        entries,
+    };
+
+    Ok(ResponseJson(ApiResponse::success(response)))
+}
+
 async fn handle_claude_pty(mut socket: WebSocket, deployment: DeploymentImpl) {
     // Start PTY session
-    let session_id = match deployment.claude_auth_pty().start_session(deployment.user_id()).await {
+    let session_id = match deployment
+        .claude_auth_pty()
+        .start_session(deployment.user_id())
+        .await
+    {
         Ok(id) => id,
         Err(e) => {
             tracing::error!(error = %e, "Failed to start PTY session");
-            let _ = socket.send(axum::extract::ws::Message::Text(format!("Error: {}", e).into())).await;
+            let _ = socket
+                .send(axum::extract::ws::Message::Text(
+                    format!("Error: {}", e).into(),
+                ))
+                .await;
             return;
         }
     };
@@ -427,6 +468,10 @@ async fn handle_claude_pty(mut socket: WebSocket, deployment: DeploymentImpl) {
 
     let read_task = tokio::spawn(async move {
         let mut buf = vec![0u8; 8192];
+        let meta_message = format!("__CLAUDE_META__{{\"sessionId\":\"{}\"}}", session_id);
+        let _ = ws_sender
+            .send(axum::extract::ws::Message::Text(meta_message.into()))
+            .await;
         loop {
             tokio::select! {
                 result = deployment_clone.claude_auth_pty().read_output(&session_id, &mut buf) => {
@@ -462,7 +507,11 @@ async fn handle_claude_pty(mut socket: WebSocket, deployment: DeploymentImpl) {
         let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(2));
         loop {
             interval.tick().await;
-            match deployment_check.claude_auth_pty().check_login_success(&session_id, &user_id).await {
+            match deployment_check
+                .claude_auth_pty()
+                .check_login_success(&session_id, &user_id)
+                .await
+            {
                 Ok(true) => {
                     tracing::info!("Login success detected");
                     let _ = success_tx.send(()).await;
@@ -481,14 +530,22 @@ async fn handle_claude_pty(mut socket: WebSocket, deployment: DeploymentImpl) {
     while let Some(msg) = ws_receiver.next().await {
         match msg {
             Ok(axum::extract::ws::Message::Binary(data)) => {
-                if let Err(e) = deployment.claude_auth_pty().write_input(&session_id, &data).await {
+                if let Err(e) = deployment
+                    .claude_auth_pty()
+                    .write_input(&session_id, &data)
+                    .await
+                {
                     tracing::error!(error = %e, "Failed to write to PTY");
                     break;
                 }
             }
             Ok(axum::extract::ws::Message::Text(data)) => {
                 let data_bytes = data.as_bytes();
-                if let Err(e) = deployment.claude_auth_pty().write_input(&session_id, data_bytes).await {
+                if let Err(e) = deployment
+                    .claude_auth_pty()
+                    .write_input(&session_id, data_bytes)
+                    .await
+                {
                     tracing::error!(error = %e, "Failed to write to PTY");
                     break;
                 }
@@ -503,7 +560,10 @@ async fn handle_claude_pty(mut socket: WebSocket, deployment: DeploymentImpl) {
     }
 
     // Cleanup
-    let _ = deployment.claude_auth_pty().cancel_session(&session_id).await;
+    let _ = deployment
+        .claude_auth_pty()
+        .cancel_session(&session_id)
+        .await;
     read_task.abort();
     check_task.abort();
 }

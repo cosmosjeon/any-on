@@ -115,6 +115,7 @@
           "connecting": "セッションを開始しています…",
           "disconnecting": "接続解除中…"
         },
+      "success": "Claude Code の認証情報が保存されました。",
         "errors": {
           "start": "Claude ログインセッションを開始できませんでした。もう一度お試しください。",
           "logout": "Claude の認証情報を削除できませんでした。"

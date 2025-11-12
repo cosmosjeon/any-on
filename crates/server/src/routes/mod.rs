@@ -3,7 +3,7 @@ use axum::{
     middleware::from_fn_with_state,
     routing::{IntoMakeService, get},
 };
-use tower_http::cors::{CorsLayer, Any};
+use tower_http::cors::{Any, CorsLayer};
 
 use crate::DeploymentImpl;
 

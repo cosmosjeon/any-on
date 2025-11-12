@@ -39,6 +39,14 @@ impl DockerHarness {
 
     /// Ensure an image exists locally, pulling it if missing.
     pub async fn ensure_image(&self, image: &str) -> Result<()> {
+        // First check if image exists locally
+        if self.docker.inspect_image(image).await.is_ok() {
+            tracing::debug!("Image {image} already exists locally, skipping pull");
+            return Ok(());
+        }
+
+        // Image not found locally, try to pull it
+        tracing::info!("Image {image} not found locally, attempting to pull...");
         let mut retries = DEFAULT_PULL_RETRY;
         loop {
             match self

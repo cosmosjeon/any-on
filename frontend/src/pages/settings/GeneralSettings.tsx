@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cloneDeep, merge, isEqual } from 'lodash';
 import {
@@ -64,6 +64,8 @@ export function GeneralSettings() {
     reloadSystem,
   } = useUserSystem();
 
+  void _isCloud;
+
   // Draft state management
   const [draft, setDraft] = useState(() => (config ? cloneDeep(config) : null));
   const [dirty, setDirty] = useState(false);
@@ -78,6 +80,8 @@ export function GeneralSettings() {
   const [claudeActionType, setClaudeActionType] = useState<
     'connect' | 'disconnect' | null
   >(null);
+  const [claudeLoginSuccess, setClaudeLoginSuccess] = useState(false);
+  const claudeSuccessTimeoutRef = useRef<number | null>(null);
 
   const validateBranchPrefix = useCallback(
     (prefix: string): string | null => {
@@ -144,6 +148,14 @@ export function GeneralSettings() {
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
   }, [hasUnsavedChanges]);
+
+  useEffect(() => {
+    return () => {
+      if (claudeSuccessTimeoutRef.current) {
+        window.clearTimeout(claudeSuccessTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const playSound = async (soundFile: SoundFile) => {
     const audio = new Audio(`/api/sounds/${soundFile}`);
@@ -235,6 +247,13 @@ export function GeneralSettings() {
       const result = await NiceModal.show('claude-login');
       if (result) {
         await reloadSystem();
+        setClaudeLoginSuccess(true);
+        if (claudeSuccessTimeoutRef.current) {
+          window.clearTimeout(claudeSuccessTimeoutRef.current);
+        }
+        claudeSuccessTimeoutRef.current = window.setTimeout(() => {
+          setClaudeLoginSuccess(false);
+        }, 4000);
       }
     } catch (err) {
       console.error('Failed to start Claude login', err);
@@ -285,6 +304,14 @@ export function GeneralSettings() {
       {error && (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {claudeLoginSuccess && (
+        <Alert className="border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200">
+          <AlertDescription className="font-medium">
+            {t('settings.general.claude.success')}
+          </AlertDescription>
         </Alert>
       )}
 

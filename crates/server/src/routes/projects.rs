@@ -40,10 +40,7 @@ pub(crate) fn contains_invalid_project_name_chars(name: &str) -> bool {
 }
 
 async fn resolve_workspace_path(deployment: &DeploymentImpl) -> Result<PathBuf, io::Error> {
-    let base_path = deployment
-        .workspace_dir()
-        .await
-        .map_err(io::Error::from)?;
+    let base_path = deployment.workspace_dir().await.map_err(io::Error::from)?;
     fs::create_dir_all(&base_path).await?;
     Ok(base_path)
 }

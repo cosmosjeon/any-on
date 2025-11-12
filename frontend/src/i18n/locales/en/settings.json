@@ -115,6 +115,7 @@
           "connecting": "Starting session…",
           "disconnecting": "Disconnecting…"
         },
+      "success": "Claude Code credentials saved successfully.",
         "errors": {
           "start": "Could not start the Claude login session. Please try again.",
           "logout": "Failed to delete Claude credentials."

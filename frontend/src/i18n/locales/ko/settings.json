@@ -115,6 +115,7 @@
           "connecting": "세션 시작 중…",
           "disconnecting": "연결 해제 중…"
         },
+      "success": "Claude Code 인증이 완료되었습니다.",
         "errors": {
           "start": "Claude 로그인 세션을 시작하지 못했습니다. 다시 시도해주세요.",
           "logout": "Claude 자격 증명을 삭제하지 못했습니다."

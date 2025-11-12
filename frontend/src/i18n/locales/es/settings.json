@@ -115,6 +115,7 @@
           "connecting": "Iniciando sesión…",
           "disconnecting": "Desconectando…"
         },
+      "success": "Las credenciales de Claude Code se guardaron correctamente.",
         "errors": {
           "start": "No se pudo iniciar la sesión de acceso a Claude. Vuelve a intentarlo.",
           "logout": "No se pudieron eliminar las credenciales de Claude."

@@ -111,16 +111,14 @@ impl ClaudeAuthManager {
         );
 
         command.kill_on_drop(true);
-        let mut child = command
-            .spawn()
-            .map_err(|err| {
-                tracing::error!(
-                    session_id = %session_id,
-                    error = %err,
-                    "Failed to spawn Claude CLI process"
-                );
-                ClaudeAuthError::Spawn(err.to_string())
-            })?;
+        let mut child = command.spawn().map_err(|err| {
+            tracing::error!(
+                session_id = %session_id,
+                error = %err,
+                "Failed to spawn Claude CLI process"
+            );
+            ClaudeAuthError::Spawn(err.to_string())
+        })?;
 
         tracing::debug!(
             session_id = %session_id,

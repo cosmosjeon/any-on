@@ -22,7 +22,13 @@ export const ClaudeLoginDialog = NiceModal.create(() => {
           </DialogDescription>
         </DialogHeader>
         <div className="flex-1 min-h-0">
-          <ClaudeTerminal onClose={() => modal.remove()} />
+          <ClaudeTerminal
+            onClose={() => modal.remove()}
+            onSuccess={() => {
+              modal.resolve(true);
+              modal.remove();
+            }}
+          />
         </div>
       </DialogContent>
     </Dialog>
