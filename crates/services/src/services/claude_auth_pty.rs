@@ -216,7 +216,15 @@ impl ClaudePtyManager {
         user_id: &str,
     ) -> Result<bool, ClaudePtyError> {
         let session = self.get_session(session_id)?;
+
+        tracing::debug!(
+            session_id = %session_id,
+            home_dir = %session.home_dir.display(),
+            "🔍 Checking for Claude credential files..."
+        );
+
         let credential_paths = [
+            session.home_dir.join(".claude").join(".claude.json"),
             session.home_dir.join(".claude").join("meta.json"),
             session.home_dir.join(".claude").join("config.json"),
             session
@@ -227,13 +235,41 @@ impl ClaudePtyManager {
             session.home_dir.join(".claude.json"),
         ];
 
+        // Log each path check
+        for (i, path) in credential_paths.iter().enumerate() {
+            let exists = path.exists();
+            tracing::debug!(
+                session_id = %session_id,
+                path_index = i,
+                path = %path.display(),
+                exists = exists,
+                "📂 Checking credential path"
+            );
+        }
+
         let credential_path = credential_paths.into_iter().find(|path| path.exists());
 
         let Some(path) = credential_path else {
+            tracing::debug!(
+                session_id = %session_id,
+                "❌ No credential file found yet"
+            );
             return Ok(false);
         };
 
+        tracing::info!(
+            session_id = %session_id,
+            path = %path.display(),
+            "✅ Found credential file!"
+        );
+
         let credential_content = std::fs::read(&path)?;
+
+        tracing::debug!(
+            session_id = %session_id,
+            content_length = credential_content.len(),
+            "📄 Read credential content"
+        );
 
         self.secret_store
             .put_secret(user_id, SECRET_CLAUDE_ACCESS, &credential_content)
@@ -242,7 +278,7 @@ impl ClaudePtyManager {
         tracing::info!(
             session_id = %session_id,
             user_id = %user_id,
-            "Claude login successful, credential stored"
+            "💾 Claude login successful, credential stored in secret store"
         );
 
         Ok(true)

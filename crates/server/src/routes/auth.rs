@@ -469,6 +469,10 @@ async fn handle_claude_pty(mut socket: WebSocket, deployment: DeploymentImpl) {
     let read_task = tokio::spawn(async move {
         let mut buf = vec![0u8; 8192];
         let meta_message = format!("__CLAUDE_META__{{\"sessionId\":\"{}\"}}", session_id);
+        tracing::debug!(
+            session_id = %session_id,
+            "📤 Sending session metadata to frontend"
+        );
         let _ = ws_sender
             .send(axum::extract::ws::Message::Text(meta_message.into()))
             .await;
@@ -476,54 +480,138 @@ async fn handle_claude_pty(mut socket: WebSocket, deployment: DeploymentImpl) {
             tokio::select! {
                 result = deployment_clone.claude_auth_pty().read_output(&session_id, &mut buf) => {
                     match result {
-                        Ok(0) => break, // EOF
+                        Ok(0) => {
+                            tracing::debug!(
+                                session_id = %session_id,
+                                "📭 PTY output EOF reached"
+                            );
+                            break;
+                        }
                         Ok(n) => {
+                            tracing::trace!(
+                                session_id = %session_id,
+                                bytes = n,
+                                "📨 Sending PTY output to WebSocket"
+                            );
                             if ws_sender
                                 .send(axum::extract::ws::Message::Binary(buf[..n].to_vec().into()))
                                 .await
                                 .is_err()
                             {
+                                tracing::error!(
+                                    session_id = %session_id,
+                                    "❌ WebSocket send failed, closing read task"
+                                );
                                 break;
                             }
                         }
                         Err(e) => {
-                            tracing::error!(error = %e, "Failed to read from PTY");
+                            tracing::error!(
+                                session_id = %session_id,
+                                error = %e,
+                                "❌ Failed to read from PTY"
+                            );
                             break;
                         }
                     }
                 }
                 _ = success_rx.recv() => {
+                    tracing::info!(
+                        session_id = %session_id,
+                        "🎉 Success signal received from check task!"
+                    );
                     // Send success message to frontend
                     let success_msg = "\r\n\r\n✅ 로그인 성공! Credential이 저장되었습니다.\r\n";
-                    let _ = ws_sender.send(axum::extract::ws::Message::Text(success_msg.into())).await;
+                    tracing::info!(
+                        session_id = %session_id,
+                        message = success_msg,
+                        "📤 Sending success message to frontend"
+                    );
+                    let send_result = ws_sender.send(axum::extract::ws::Message::Text(success_msg.into())).await;
+                    if send_result.is_ok() {
+                        tracing::info!(
+                            session_id = %session_id,
+                            "✅ Success message sent to frontend successfully"
+                        );
+                    } else {
+                        tracing::error!(
+                            session_id = %session_id,
+                            "❌ Failed to send success message to frontend"
+                        );
+                    }
                     break;
                 }
             }
         }
+        tracing::debug!(
+            session_id = %session_id,
+            "🛑 Read task exiting"
+        );
     });
 
     // Spawn task to check for login success
     let check_task = tokio::spawn(async move {
         let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(2));
+        let mut check_count = 0;
+        tracing::info!(
+            session_id = %session_id,
+            "🔄 Starting login success check task (polling every 2s)"
+        );
         loop {
             interval.tick().await;
+            check_count += 1;
+            tracing::debug!(
+                session_id = %session_id,
+                check_count = check_count,
+                "⏱️  Performing login success check #{}", check_count
+            );
             match deployment_check
                 .claude_auth_pty()
                 .check_login_success(&session_id, &user_id)
                 .await
             {
                 Ok(true) => {
-                    tracing::info!("Login success detected");
-                    let _ = success_tx.send(()).await;
+                    tracing::info!(
+                        session_id = %session_id,
+                        check_count = check_count,
+                        "🎊 Login success detected! Sending signal to read task..."
+                    );
+                    let send_result = success_tx.send(()).await;
+                    if send_result.is_ok() {
+                        tracing::info!(
+                            session_id = %session_id,
+                            "✅ Success signal sent to read task successfully"
+                        );
+                    } else {
+                        tracing::error!(
+                            session_id = %session_id,
+                            "❌ Failed to send success signal to read task"
+                        );
+                    }
                     break;
                 }
-                Ok(false) => continue,
+                Ok(false) => {
+                    tracing::trace!(
+                        session_id = %session_id,
+                        check_count = check_count,
+                        "⏭️  No credential found yet, continuing to check..."
+                    );
+                    continue;
+                }
                 Err(e) => {
-                    tracing::error!(error = %e, "Failed to check login success");
+                    tracing::error!(
+                        session_id = %session_id,
+                        error = %e,
+                        "❌ Failed to check login success, stopping check task"
+                    );
                     break;
                 }
             }
         }
+        tracing::debug!(
+            session_id = %session_id,
+            "🛑 Check task exiting"
+        );
     });
 
     // Read from WebSocket and write to PTY

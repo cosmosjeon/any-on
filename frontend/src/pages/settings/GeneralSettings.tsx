@@ -240,25 +240,34 @@ export function GeneralSettings() {
 
   const handleClaudeLogin = useCallback(async () => {
     if (!claudeFeatureEnabled) return;
+    console.log('🚀 [GeneralSettings] Starting Claude login flow');
     setClaudeActionType('connect');
     setClaudeActionLoading(true);
     setError(null);
     try {
+      console.log('📺 [GeneralSettings] Showing claude-login modal');
       const result = await NiceModal.show('claude-login');
+      console.log('📺 [GeneralSettings] Modal closed with result:', result);
       if (result) {
+        console.log('🔄 [GeneralSettings] Login successful, reloading system config');
         await reloadSystem();
+        console.log('✅ [GeneralSettings] System config reloaded, showing success state');
         setClaudeLoginSuccess(true);
         if (claudeSuccessTimeoutRef.current) {
           window.clearTimeout(claudeSuccessTimeoutRef.current);
         }
         claudeSuccessTimeoutRef.current = window.setTimeout(() => {
+          console.log('⏱️  [GeneralSettings] Clearing success state after 4s');
           setClaudeLoginSuccess(false);
         }, 4000);
+      } else {
+        console.log('❌ [GeneralSettings] Modal returned falsy result');
       }
     } catch (err) {
-      console.error('Failed to start Claude login', err);
+      console.error('❌ [GeneralSettings] Failed to start Claude login', err);
       setError(t('settings.general.claude.errors.start'));
     } finally {
+      console.log('🏁 [GeneralSettings] Login flow finished');
       setClaudeActionLoading(false);
       setClaudeActionType(null);
     }
