@@ -68,7 +68,7 @@ export function FollowUpConflictSection({
       {/* Conflict instructions preview (non-editable) */}
       {conflictResolutionInstructions && enableResolve && (
         <div className="text-sm mb-4">
-          <div className="text-xs font-medium text-warning-foreground dark:text-warning mb-1">
+          <div className="text-xs font-medium text-amber-700 dark:text-amber-300 mb-1">
             Conflict resolution instructions
           </div>
           <div className="whitespace-pre-wrap">

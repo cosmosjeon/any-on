@@ -104,7 +104,7 @@ const ClickedEntryCard = ({
 
   return (
     <div className="flex gap-2 items-center min-w-0">
-      <MousePointerClick className="h-4 w-4 text-info shrink-0" aria-hidden />
+      <MousePointerClick className="h-4 w-4 text-sky-600 shrink-0" aria-hidden />
 
       <div className="flex items-center gap-1 overflow-hidden">
         {display.map((component, i) => {

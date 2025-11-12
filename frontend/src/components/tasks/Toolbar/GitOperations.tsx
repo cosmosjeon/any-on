@@ -453,7 +453,7 @@ function GitOperations({
               }
               variant="outline"
               size="xs"
-              className="border-success text-success hover:bg-success gap-1 shrink-0"
+              className="border-emerald-500 text-emerald-600 hover:bg-emerald-500/10 gap-1 shrink-0"
               aria-label={mergeButtonLabel}
             >
               <GitBranchIcon className="h-3.5 w-3.5" />
@@ -475,7 +475,7 @@ function GitOperations({
               }
               variant="outline"
               size="xs"
-              className="border-info text-info hover:bg-info gap-1 shrink-0"
+              className="border-sky-500 text-sky-600 hover:bg-sky-500/10 gap-1 shrink-0"
               aria-label={prButtonLabel}
             >
               <GitPullRequest className="h-3.5 w-3.5" />
@@ -487,7 +487,7 @@ function GitOperations({
               disabled={rebasing || isAttemptRunning || hasConflictsCalculated}
               variant="outline"
               size="xs"
-              className="border-warning text-warning hover:bg-warning gap-1 shrink-0"
+              className="border-amber-500 text-amber-600 hover:bg-amber-500/10 gap-1 shrink-0"
               aria-label={rebaseButtonLabel}
             >
               <RefreshCw

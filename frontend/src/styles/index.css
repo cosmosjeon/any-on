@@ -1,292 +1,291 @@
-@import url('https://fonts.googleapis.com/css2?family=Chivo+Mono:ital,wght@0,100..900;1,100..900&family=Noto+Emoji:wght@300..700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Geist+Mono:wght@100..900&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* 1) THEME TOKENS (underscored): defaults + classes control these */
 @layer base {
-  /* Light defaults */
   :root {
-    color-scheme: light;
-    --_background: 48 33% 97%;
-    --_foreground: 222.2 84% 4.9%;
-    --_primary: var(--_muted);
-    --_primary-foreground: var(--_muted-foreground);
-    --_secondary: var(--_muted);
-    --_secondary-foreground: 215.4 16.3% 70.9%;
-    --_muted: 0 0% 100%;
-    --_muted-foreground: var(--_foreground);
-    --_accent: var(--_background);
-    --_accent-foreground: 222.2 84% 4.9%;
-    --_destructive: 0 84.2% 60.2%;
-    --_destructive-foreground: var(--_background);
-    --_border: 214.3 31.8% 91.4%;
-    --_input: var(--_border);
-    --_ring: 222.2 84% 4.9%;
-    --_radius: 0.5rem;
+    --background: oklch(1.00 0 0);
+    --foreground: oklch(0.14 0.00 285.86);
+    --card: oklch(1.00 0 0);
+    --card-foreground: oklch(0.14 0.00 285.86);
+    --popover: oklch(1.00 0 0);
+    --popover-foreground: oklch(0.14 0.00 285.86);
+    --primary: oklch(0.21 0.01 285.93);
+    --primary-foreground: oklch(0.99 0 0);
+    --secondary: oklch(0.97 0 0);
+    --secondary-foreground: oklch(0.21 0.01 285.93);
+    --muted: oklch(0.97 0 0);
+    --muted-foreground: oklch(0.55 0.02 285.93);
+    --accent: oklch(0.97 0 0);
+    --accent-foreground: oklch(0.21 0.01 285.93);
+    --destructive: oklch(0.58 0.24 28.48);
+    --border: oklch(0.92 0.00 286.61);
+    --input: oklch(0.92 0.00 286.61);
+    --ring: oklch(0.71 0.01 286.09);
+    --chart-1: oklch(0.65 0.22 36.85);
+    --chart-2: oklch(0.60 0.11 184.15);
+    --chart-3: oklch(0.40 0.07 227.18);
+    --chart-4: oklch(0.83 0.17 81.03);
+    --chart-5: oklch(0.77 0.17 65.36);
+    --sidebar: oklch(0.99 0 0);
+    --sidebar-foreground: oklch(0.14 0.00 285.86);
+    --sidebar-primary: oklch(0.21 0.01 285.93);
+    --sidebar-primary-foreground: oklch(0.99 0 0);
+    --sidebar-accent: oklch(0.97 0 0);
+    --sidebar-accent-foreground: oklch(0.21 0.01 285.93);
+    --sidebar-border: oklch(0.92 0.00 286.61);
+    --sidebar-ring: oklch(0.71 0.01 286.09);
 
-    /* Status (light) */
-    --_success: 142.1 76.2% 36.3%;
-    --_success-foreground: 138.5 76.5% 96.7%;
-    --_warning: 32.2 95% 44.1%;
-    --_warning-foreground: 26 83.3% 14.1%;
-    --_info: 217.2 91.2% 59.8%;
-    --_info-foreground: 222.2 84% 4.9%;
-    --_neutral: 210 40% 96%;
-    --_neutral-foreground: 222.2 84% 4.9%;
+    --font-sans: 'Geist', 'Geist Fallback', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-serif: "Geist", "Geist Fallback", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+    --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
-    /* Console (light) */
-    --_console-background: 0 0% 100%;
-    --_console-foreground: 222.2 84% 4.9%;
-    --_console-success: 138 69% 45%;
-    --_console-error: 5 100% 69%;
+    --radius: 0.625rem;
+
+    --shadow-2xs: 0 1px 3px 0px oklch(0.00 0 0 / 0.05);
+    --shadow-xs: 0 1px 3px 0px oklch(0.00 0 0 / 0.05);
+    --shadow-sm: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 1px 2px -1px oklch(0.00 0 0 / 0.10);
+    --shadow: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 1px 2px -1px oklch(0.00 0 0 / 0.10);
+    --shadow-md: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 2px 4px -1px oklch(0.00 0 0 / 0.10);
+    --shadow-lg: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 4px 6px -1px oklch(0.00 0 0 / 0.10);
+    --shadow-xl: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 8px 10px -1px oklch(0.00 0 0 / 0.10);
+    --shadow-2xl: 0 1px 3px 0px oklch(0.00 0 0 / 0.25);
   }
 
-  /* Dark defaults (used if no theme class but user prefers dark) */
   .dark {
-    color-scheme: dark;
-    --_background: 48 4% 16%;
-    --_foreground: 48 7% 85%;
-    --_primary: var(--_muted);
-    --_primary-foreground: var(--_muted-foreground);
-    --_secondary: var(--_muted);
-    --_secondary-foreground: 48 2% 65%;
-    --_muted: 60 2% 18%;
-    --_muted-foreground: var(--_foreground);
-    --_accent: var(--_background);
-    --_accent-foreground: 210 40% 98%;
-    --_destructive: 0 45% 55%;
-    --_destructive-foreground: var(--_background-foreground);
-    --_border: 60 2% 25%;
-    --_input: var(--_border);
-    --_ring: 212.7 26.8% 83.9%;
+    --background: oklch(0.14 0.00 285.86);
+    --foreground: oklch(0.99 0 0);
+    --card: oklch(0.21 0.01 285.93);
+    --card-foreground: oklch(0.99 0 0);
+    --popover: oklch(0.21 0.01 285.93);
+    --popover-foreground: oklch(0.99 0 0);
+    --primary: oklch(0.92 0.00 286.61);
+    --primary-foreground: oklch(0.21 0.01 285.93);
+    --secondary: oklch(0.27 0.01 286.10);
+    --secondary-foreground: oklch(0.99 0 0);
+    --muted: oklch(0.27 0.01 286.10);
+    --muted-foreground: oklch(0.71 0.01 286.09);
+    --accent: oklch(0.27 0.01 286.10);
+    --accent-foreground: oklch(0.99 0 0);
+    --destructive: oklch(0.70 0.19 22.23);
+    --border: oklch(1.00 0 0 / 10%);
+    --input: oklch(1.00 0 0 / 15%);
+    --ring: oklch(0.55 0.02 285.93);
+    --chart-1: oklch(0.49 0.24 264.40);
+    --chart-2: oklch(0.70 0.16 160.43);
+    --chart-3: oklch(0.77 0.17 65.36);
+    --chart-4: oklch(0.62 0.26 305.32);
+    --chart-5: oklch(0.64 0.25 16.51);
+    --sidebar: oklch(0.21 0.01 285.93);
+    --sidebar-foreground: oklch(0.99 0 0);
+    --sidebar-primary: oklch(0.49 0.24 264.40);
+    --sidebar-primary-foreground: oklch(0.99 0 0);
+    --sidebar-accent: oklch(0.27 0.01 286.10);
+    --sidebar-accent-foreground: oklch(0.99 0 0);
+    --sidebar-border: oklch(1.00 0 0 / 10%);
+    --sidebar-ring: oklch(0.55 0.02 285.93);
 
-    /* Status (dark) */
-    --_success: 138.5 76.5% 47.7%;
-    --_success-foreground: 138.5 76.5% 96.7%;
-    --_warning: 32.2 95% 44.1%;
-    --_warning-foreground: 26 83.3% 14.1%;
-    --_info: 217.2 91.2% 59.8%;
-    --_info-foreground: 222.2 84% 4.9%;
-    --_neutral: 217.2 32.6% 17.5%;
-    --_neutral-foreground: 210 40% 98%;
-
-    /* Console (dark) */
-    --_console-background: 0 0% 0%;
-    --_console-foreground: 210 40% 98%;
-    --_console-success: 138.5 76.5% 47.7%;
-    --_console-error: 0 84.2% 60.2%;
+    --shadow-2xs: 0 1px 3px 0px oklch(0.00 0 0 / 0.05);
+    --shadow-xs: 0 1px 3px 0px oklch(0.00 0 0 / 0.05);
+    --shadow-sm: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 1px 2px -1px oklch(0.00 0 0 / 0.10);
+    --shadow: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 1px 2px -1px oklch(0.00 0 0 / 0.10);
+    --shadow-md: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 2px 4px -1px oklch(0.00 0 0 / 0.10);
+    --shadow-lg: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 4px 6px -1px oklch(0.00 0 0 / 0.10);
+    --shadow-xl: 0 1px 3px 0px oklch(0.00 0 0 / 0.10), 0 8px 10px -1px oklch(0.00 0 0 / 0.10);
+    --shadow-2xl: 0 1px 3px 0px oklch(0.00 0 0 / 0.25);
   }
-}
 
-/* 2) PUBLIC TOKENS: prefer VS Code, else fall back to theme tokens */
-@layer base {
-  :root {
-    --background: var(--vscode-editor-background, var(--_background));
-    --foreground: var(--vscode-editor-foreground, var(--_foreground));
-
-    --card: var(--muted);
-    --card-foreground: var(--muted-foreground);
-    --popover: var(--background);
-    --popover-foreground: var(--foreground);
-
-    --primary: var(--vscode-button-background, var(--_primary));
-    --primary-foreground: var(
-      --vscode-editor-foreground,
-      var(--_primary-foreground)
-    );
-    --secondary: var(--vscode-input-background, var(--_secondary));
-    --secondary-foreground: var(
-      --vscode-input-foreground,
-      var(--_secondary-foreground)
-    );
-
-    --muted: var(--vscode-editor-background, var(--_muted));
-    --muted-foreground: var(
-      --vscode-descriptionForeground,
-      var(--_muted-foreground)
-    );
-    --accent: var(--vscode-focusBorder, var(--_accent));
-    --accent-foreground: var(
-      --vscode-editor-foreground,
-      var(--_accent-foreground)
-    );
-
-    --destructive: var(--vscode-errorForeground, var(--_destructive));
-    --destructive-foreground: var(
-      --vscode-button-foreground,
-      var(--_destructive-foreground)
-    );
-
-    --border: var(--vscode-input-background, var(--_border));
-    --input: var(--vscode-input-background, var(--_input));
-    --ring: var(--vscode-focusBorder, var(--_ring));
-
-    --radius: var(--_radius);
-
-    /* Status */
-    --success: var(--vscode-testing-iconPassed, var(--_success));
-    --success-foreground: var(
-      --vscode-editor-foreground,
-      var(--_success-foreground)
-    );
-    --warning: var(--vscode-testing-iconQueued, var(--_warning));
-    --warning-foreground: var(
-      --vscode-descriptionForeground,
-      var(--_warning-foreground)
-    );
-    --info: var(--vscode-focusBorder, var(--_info));
-    --info-foreground: var(--vscode-editor-foreground, var(--_info-foreground));
-    --neutral: var(--vscode-input-background, var(--_neutral));
-    --neutral-foreground: var(
-      --vscode-editor-foreground,
-      var(--_neutral-foreground)
-    );
-
-    /* Console/terminal */
-    --console-background: var(
-      --vscode-editor-background,
-      var(--_console-background)
-    );
-    --console-foreground: var(
-      --vscode-terminal-foreground,
-      var(--_console-foreground)
-    );
-    --console-success: var(
-      --vscode-testing-iconPassed,
-      var(--_console-success)
-    );
-    --console-error: var(--vscode-terminal-ansiRed, var(--_console-error));
-  }
-}
-
-/* 3) Usage */
-@layer base {
   * {
-    @apply border-border;
+    border-color: var(--border);
   }
 
   html,
   body,
   #root {
-    @apply min-h-screen;
+    min-height: 100vh;
   }
 
   body {
-    @apply bg-background text-foreground font-chivo-mono;
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
   }
 
-  *:focus {
-    @apply ring-inset;
+  *:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
   }
 
   .logo {
-    @apply fill-foreground;
+    fill: var(--foreground);
   }
 }
 
-/* ANSI color classes for fancy-ansi */
 @layer components {
   .ansi-red {
-    @apply text-red-500;
+    color: rgb(239 68 68);
   }
 
   .ansi-green {
-    @apply text-green-500;
+    color: rgb(34 197 94);
   }
 
   .ansi-yellow {
-    @apply text-yellow-500;
+    color: rgb(234 179 8);
   }
 
   .ansi-blue {
-    @apply text-blue-500;
+    color: rgb(59 130 246);
   }
 
   .ansi-magenta {
-    @apply text-purple-500;
+    color: rgb(168 85 247);
   }
 
   .ansi-cyan {
-    @apply text-cyan-500;
+    color: rgb(6 182 212);
   }
 
   .ansi-white {
-    @apply text-white;
+    color: rgb(255 255 255);
   }
 
   .ansi-black {
-    @apply text-black;
+    color: rgb(0 0 0);
   }
 
   .ansi-bright-red {
-    @apply text-red-400;
+    color: rgb(248 113 113);
   }
 
   .ansi-bright-green {
-    @apply text-green-400;
+    color: rgb(74 222 128);
   }
 
   .ansi-bright-yellow {
-    @apply text-yellow-400;
+    color: rgb(250 204 21);
   }
 
   .ansi-bright-blue {
-    @apply text-blue-400;
+    color: rgb(96 165 250);
   }
 
   .ansi-bright-magenta {
-    @apply text-purple-400;
+    color: rgb(192 132 252);
   }
 
   .ansi-bright-cyan {
-    @apply text-cyan-400;
+    color: rgb(34 211 238);
   }
 
   .ansi-bright-white {
-    @apply text-gray-200;
+    color: rgb(229 231 235);
   }
 
   .ansi-bright-black {
-    @apply text-gray-700;
+    color: rgb(55 65 81);
   }
 
   .ansi-bold {
-    @apply font-bold;
+    font-weight: 700;
   }
 
   .ansi-italic {
-    @apply italic;
+    font-style: italic;
   }
 
   .ansi-underline {
-    @apply underline;
+    text-decoration: underline;
   }
 }
 
-/* BASIC STYLES (mainly for rendering markdown) */
-
 @layer base {
-  .wysiwyg {
-    h1 {
-      @apply text-lg leading-tight font-medium;
-    }
-
-    h2 {
-      @apply leading-tight font-medium;
-    }
-
-    ul {
-      @apply list-disc list-outside space-y-1 ps-6;
-    }
-
-    ol {
-      @apply list-decimal list-outside space-y-1 ps-6;
-    }
-
-    li {
-      @apply leading-tight;
-    }
+  .wysiwyg h1 {
+    font-size: 1rem;
+    line-height: 1.5rem;
+    font-weight: 500;
   }
+
+  .wysiwyg h2 {
+    line-height: 1.5rem;
+    font-weight: 500;
+  }
+
+  .wysiwyg ul {
+    list-style-type: disc;
+    list-style-position: outside;
+    padding-inline-start: 1.5rem;
+  }
+
+  .wysiwyg ul > * + * {
+    margin-top: 0.25rem;
+  }
+
+  .wysiwyg ol {
+    list-style-type: decimal;
+    list-style-position: outside;
+    padding-inline-start: 1.5rem;
+  }
+
+  .wysiwyg ol > * + * {
+    margin-top: 0.25rem;
+  }
+
+  .wysiwyg li {
+    line-height: 1.5rem;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-serif: var(--font-serif);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --shadow-2xs: var(--shadow-2xs);
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow: var(--shadow);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-xl: var(--shadow-xl);
+  --shadow-2xl: var(--shadow-2xl);
 }

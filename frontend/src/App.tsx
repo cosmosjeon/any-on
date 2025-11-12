@@ -1,20 +1,19 @@
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { I18nextProvider } from 'react-i18next';
 import i18n from '@/i18n';
-import { Projects } from '@/pages/projects';
-import { ProjectTasks } from '@/pages/project-tasks';
-import { FullAttemptLogsPage } from '@/pages/full-attempt-logs';
 import { NormalLayout } from '@/components/layout/NormalLayout';
 import { usePostHog } from 'posthog-js/react';
 
-import {
-  AgentSettings,
-  GeneralSettings,
-  McpSettings,
-  ProjectSettings,
-  SettingsLayout,
-} from '@/pages/settings/';
+// Lazy load page components for code splitting
+const Projects = lazy(() => import('@/pages/projects').then(m => ({ default: m.Projects })));
+const ProjectTasks = lazy(() => import('@/pages/project-tasks').then(m => ({ default: m.ProjectTasks })));
+const FullAttemptLogsPage = lazy(() => import('@/pages/full-attempt-logs').then(m => ({ default: m.FullAttemptLogsPage })));
+const SettingsLayout = lazy(() => import('@/pages/settings/').then(m => ({ default: m.SettingsLayout })));
+const GeneralSettings = lazy(() => import('@/pages/settings/').then(m => ({ default: m.GeneralSettings })));
+const ProjectSettings = lazy(() => import('@/pages/settings/').then(m => ({ default: m.ProjectSettings })));
+const AgentSettings = lazy(() => import('@/pages/settings/').then(m => ({ default: m.AgentSettings })));
+const McpSettings = lazy(() => import('@/pages/settings/').then(m => ({ default: m.McpSettings })));
 import {
   UserSystemProvider,
   useUserSystem,
@@ -32,6 +31,7 @@ import { Loader } from '@/components/ui/loader';
 import NiceModal from '@ebay/nice-modal-react';
 import { OnboardingResult } from './components/dialogs/global/OnboardingDialog';
 import { ClickedElementsProvider } from './contexts/ClickedElementsProvider';
+import { PageErrorBoundary } from '@/components/ErrorBoundary';
 
 const SentryRoutes = Sentry.withSentryReactRouterV6Routing(Routes);
 
@@ -157,42 +157,115 @@ function AppContent() {
       <ThemeProvider initialTheme={config?.theme || ThemeMode.SYSTEM}>
         <SearchProvider>
           <div className="h-screen flex flex-col bg-background">
-            <SentryRoutes>
-              {/* VS Code full-page logs route (outside NormalLayout for minimal UI) */}
-              <Route
-                path="/projects/:projectId/tasks/:taskId/attempts/:attemptId/full"
-                element={<FullAttemptLogsPage />}
-              />
+            <Suspense
+              fallback={
+                <div className="min-h-screen bg-background flex items-center justify-center">
+                  <Loader message="Loading..." size={32} />
+                </div>
+              }
+            >
+              <SentryRoutes>
+                {/* VS Code full-page logs route (outside NormalLayout for minimal UI) */}
+                <Route
+                  path="/projects/:projectId/tasks/:taskId/attempts/:attemptId/full"
+                  element={
+                    <PageErrorBoundary>
+                      <FullAttemptLogsPage />
+                    </PageErrorBoundary>
+                  }
+                />
 
-              <Route element={<NormalLayout />}>
-                <Route path="/" element={<Projects />} />
-                <Route path="/projects" element={<Projects />} />
-                <Route path="/projects/:projectId" element={<Projects />} />
-                <Route
-                  path="/projects/:projectId/tasks"
-                  element={<ProjectTasks />}
-                />
-                <Route path="/settings/*" element={<SettingsLayout />}>
-                  <Route index element={<Navigate to="general" replace />} />
-                  <Route path="general" element={<GeneralSettings />} />
-                  <Route path="projects" element={<ProjectSettings />} />
-                  <Route path="agents" element={<AgentSettings />} />
-                  <Route path="mcp" element={<McpSettings />} />
+                <Route element={<NormalLayout />}>
+                  <Route
+                    path="/"
+                    element={
+                      <PageErrorBoundary>
+                        <Projects />
+                      </PageErrorBoundary>
+                    }
+                  />
+                  <Route
+                    path="/projects"
+                    element={
+                      <PageErrorBoundary>
+                        <Projects />
+                      </PageErrorBoundary>
+                    }
+                  />
+                  <Route
+                    path="/projects/:projectId"
+                    element={
+                      <PageErrorBoundary>
+                        <Projects />
+                      </PageErrorBoundary>
+                    }
+                  />
+                  <Route
+                    path="/projects/:projectId/tasks"
+                    element={
+                      <PageErrorBoundary>
+                        <ProjectTasks />
+                      </PageErrorBoundary>
+                    }
+                  />
+                  <Route path="/settings/*" element={<SettingsLayout />}>
+                    <Route index element={<Navigate to="general" replace />} />
+                    <Route
+                      path="general"
+                      element={
+                        <PageErrorBoundary>
+                          <GeneralSettings />
+                        </PageErrorBoundary>
+                      }
+                    />
+                    <Route
+                      path="projects"
+                      element={
+                        <PageErrorBoundary>
+                          <ProjectSettings />
+                        </PageErrorBoundary>
+                      }
+                    />
+                    <Route
+                      path="agents"
+                      element={
+                        <PageErrorBoundary>
+                          <AgentSettings />
+                        </PageErrorBoundary>
+                      }
+                    />
+                    <Route
+                      path="mcp"
+                      element={
+                        <PageErrorBoundary>
+                          <McpSettings />
+                        </PageErrorBoundary>
+                      }
+                    />
+                  </Route>
+                  <Route
+                    path="/mcp-servers"
+                    element={<Navigate to="/settings/mcp" replace />}
+                  />
+                  <Route
+                    path="/projects/:projectId/tasks/:taskId"
+                    element={
+                      <PageErrorBoundary>
+                        <ProjectTasks />
+                      </PageErrorBoundary>
+                    }
+                  />
+                  <Route
+                    path="/projects/:projectId/tasks/:taskId/attempts/:attemptId"
+                    element={
+                      <PageErrorBoundary>
+                        <ProjectTasks />
+                      </PageErrorBoundary>
+                    }
+                  />
                 </Route>
-                <Route
-                  path="/mcp-servers"
-                  element={<Navigate to="/settings/mcp" replace />}
-                />
-                <Route
-                  path="/projects/:projectId/tasks/:taskId"
-                  element={<ProjectTasks />}
-                />
-                <Route
-                  path="/projects/:projectId/tasks/:taskId/attempts/:attemptId"
-                  element={<ProjectTasks />}
-                />
-              </Route>
-            </SentryRoutes>
+              </SentryRoutes>
+            </Suspense>
           </div>
         </SearchProvider>
       </ThemeProvider>

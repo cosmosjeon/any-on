@@ -10,7 +10,7 @@ const TODO_PANEL_OPEN_KEY = 'todo-panel-open';
 function getStatusIcon(status?: string) {
   const s = (status || '').toLowerCase();
   if (s === 'completed')
-    return <Check aria-hidden className="h-4 w-4 text-success" />;
+    return <Check aria-hidden className="h-4 w-4 text-emerald-600" />;
   if (s === 'in_progress' || s === 'in-progress')
     return <CircleDot aria-hidden className="h-4 w-4 text-blue-500" />;
   return <Circle aria-hidden className="h-4 w-4 text-muted-foreground" />;

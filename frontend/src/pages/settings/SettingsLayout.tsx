@@ -61,12 +61,13 @@ export function SettingsLayout() {
             {t('settings.layout.nav.title')}
           </h1>
           <Button
-            variant="ghost"
+            variant="outline"
+            size="sm"
             onClick={handleBack}
-            className="h-8 px-2 rounded-none border border-foreground/20 hover:border-foreground/30 transition-all hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex items-center gap-1.5"
+            className="h-8 px-3 flex items-center gap-2"
           >
             <X className="h-4 w-4" />
-            <span className="text-xs font-medium">ESC</span>
+            <span className="text-xs">ESC</span>
           </Button>
         </div>
         <div className="flex flex-col lg:flex-row gap-8">
@@ -83,11 +84,11 @@ export function SettingsLayout() {
                       end
                       className={({ isActive }) =>
                         cn(
-                          'flex items-start gap-3 px-3 py-2 text-sm transition-colors',
-                          'hover:text-accent-foreground',
+                          'flex items-start gap-3 px-3 py-2 text-sm rounded-md',
+                          'hover:bg-accent/50',
                           isActive
-                            ? 'text-primary-foreground'
-                            : 'text-secondary-foreground'
+                            ? 'bg-accent text-foreground'
+                            : 'text-muted-foreground'
                         )
                       }
                     >
@@ -96,7 +97,9 @@ export function SettingsLayout() {
                         <div className="font-medium">
                           {t(`settings.layout.nav.${item.path}`)}
                         </div>
-                        <div>{t(`settings.layout.nav.${item.path}Desc`)}</div>
+                        <div className="text-xs opacity-70 mt-0.5">
+                          {t(`settings.layout.nav.${item.path}Desc`)}
+                        </div>
                       </div>
                     </NavLink>
                   );

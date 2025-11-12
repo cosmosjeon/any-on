@@ -54,9 +54,9 @@ export function ProjectProvider({ children }: ProjectProviderProps) {
   // Centralized page title management
   useEffect(() => {
     if (query.data) {
-      document.title = `${query.data.name} | anyon`;
+      document.title = `${query.data.name} | ANYON`;
     } else {
-      document.title = 'anyon';
+      document.title = 'ANYON';
     }
   }, [query.data]);
 
