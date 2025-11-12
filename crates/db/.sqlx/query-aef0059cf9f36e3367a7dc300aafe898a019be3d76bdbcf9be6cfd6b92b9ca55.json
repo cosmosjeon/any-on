@@ -1,0 +1,86 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                d.id                       as \"id!: Uuid\",\n                d.task_attempt_id          as \"task_attempt_id!: Uuid\",\n                d.draft_type,\n                d.retry_process_id         as \"retry_process_id?: Uuid\",\n                d.prompt,\n                d.queued                   as \"queued!: bool\",\n                d.sending                  as \"sending!: bool\",\n                d.variant,\n                d.image_ids,\n                d.created_at               as \"created_at!: DateTime<Utc>\",\n                d.updated_at               as \"updated_at!: DateTime<Utc>\",\n                d.version                  as \"version!: i64\"\n              FROM drafts d\n              JOIN task_attempts ta ON d.task_attempt_id = ta.id\n              JOIN tasks t ON ta.task_id = t.id\n             WHERE d.task_attempt_id = $1\n               AND d.draft_type = $2\n               AND t.user_id = $3",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: Uuid",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "task_attempt_id!: Uuid",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "draft_type",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "retry_process_id?: Uuid",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "prompt",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "queued!: bool",
+        "ordinal": 5,
+        "type_info": "Integer"
+      },
+      {
+        "name": "sending!: bool",
+        "ordinal": 6,
+        "type_info": "Integer"
+      },
+      {
+        "name": "variant",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "image_ids",
+        "ordinal": 8,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at!: DateTime<Utc>",
+        "ordinal": 9,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "updated_at!: DateTime<Utc>",
+        "ordinal": 10,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "version!: i64",
+        "ordinal": 11,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "aef0059cf9f36e3367a7dc300aafe898a019be3d76bdbcf9be6cfd6b92b9ca55"
+}
