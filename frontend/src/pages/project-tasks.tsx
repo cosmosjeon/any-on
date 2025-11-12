@@ -66,6 +66,7 @@ type Task = TaskWithAttemptStatus;
 
 const TASK_STATUSES = [
   'todo',
+  'plan',
   'inprogress',
   'inreview',
   'done',

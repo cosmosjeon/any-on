@@ -32,6 +32,23 @@ yarn-error.log*
 *~
 .claude/.mcp.json
 
+# AI Coding Assistants
+.augment/
+.bmad/
+.bmad-ephemeral/
+.clinerules/
+.crush/
+.cursor/
+.gemini/
+.github/chatmodes/
+.iflow/
+.kilocodemodes
+.opencode/
+.qwen/
+.roomodes
+.trae/
+.windsurf/
+
 # OS
 .DS_Store
 .DS_Store?
