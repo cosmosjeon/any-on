@@ -9,6 +9,9 @@ import { usePostHog } from 'posthog-js/react';
 const Projects = lazy(() => import('@/pages/projects').then(m => ({ default: m.Projects })));
 const ProjectTasks = lazy(() => import('@/pages/project-tasks').then(m => ({ default: m.ProjectTasks })));
 const FullAttemptLogsPage = lazy(() => import('@/pages/full-attempt-logs').then(m => ({ default: m.FullAttemptLogsPage })));
+const DocsPage = lazy(() => import('@/pages/docs').then(m => ({ default: m.DocsPage })));
+const DesignPage = lazy(() => import('@/pages/design').then(m => ({ default: m.DesignPage })));
+const KanbanPage = lazy(() => import('@/pages/kanban').then(m => ({ default: m.KanbanPage })));
 const SettingsLayout = lazy(() => import('@/pages/settings/').then(m => ({ default: m.SettingsLayout })));
 const GeneralSettings = lazy(() => import('@/pages/settings/').then(m => ({ default: m.GeneralSettings })));
 const ProjectSettings = lazy(() => import('@/pages/settings/').then(m => ({ default: m.ProjectSettings })));
@@ -197,6 +200,30 @@ function AppContent() {
                     element={
                       <PageErrorBoundary>
                         <Projects />
+                      </PageErrorBoundary>
+                    }
+                  />
+                  <Route
+                    path="/projects/:projectId/docs"
+                    element={
+                      <PageErrorBoundary>
+                        <DocsPage />
+                      </PageErrorBoundary>
+                    }
+                  />
+                  <Route
+                    path="/projects/:projectId/design"
+                    element={
+                      <PageErrorBoundary>
+                        <DesignPage />
+                      </PageErrorBoundary>
+                    }
+                  />
+                  <Route
+                    path="/projects/:projectId/kanban"
+                    element={
+                      <PageErrorBoundary>
+                        <KanbanPage />
                       </PageErrorBoundary>
                     }
                   />

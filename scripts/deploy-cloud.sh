@@ -19,7 +19,7 @@ echo ""
 if [ ! -f ".env.cloud" ]; then
     echo -e "${RED}Error: .env.cloud file not found!${NC}"
     echo "Please create .env.cloud file with required environment variables."
-    echo "See CLOUD_DEPLOYMENT_GUIDE.md for details."
+    echo "See docs/guides/CLOUD_DEPLOYMENT_GUIDE.md for details."
     exit 1
 fi
 

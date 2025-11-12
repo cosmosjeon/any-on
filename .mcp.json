@@ -25,6 +25,13 @@
         "serena",
         "start-mcp-server"
       ]
+    },
+    "shadcn": {
+      "command": "npx",
+      "args": [
+        "shadcn@latest",
+        "mcp"
+      ]
     }
   }
 }

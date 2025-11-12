@@ -11,7 +11,7 @@ import { TaskCard } from './TaskCard';
 import type { TaskStatus, TaskWithAttemptStatus } from 'shared/types';
 import { cn } from '@/lib/utils';
 
-import { statusBoardColors, statusLabels } from '@/utils/status-labels';
+import { extendedStatusLabels, extendedStatusColors } from '@/utils/status-labels';
 
 type Task = TaskWithAttemptStatus;
 
@@ -37,6 +37,9 @@ type KanbanColumn = {
   color: string;
 };
 
+// Extended status type including frontend-only statuses
+type ExtendedStatus = TaskStatus | 'plan';
+
 function TaskKanbanBoard({
   groupedTasks,
   onDragEnd,
@@ -48,10 +51,13 @@ function TaskKanbanBoard({
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const { columns, data } = useMemo(() => {
-    const columns: KanbanColumn[] = Object.keys(groupedTasks).map((status) => ({
+    // Define column order with Plan inserted after Backlog
+    const columnOrder: ExtendedStatus[] = ['todo', 'plan', 'inprogress', 'inreview', 'done', 'cancelled'];
+
+    const columns: KanbanColumn[] = columnOrder.map((status) => ({
       id: status,
-      name: statusLabels[status as TaskStatus],
-      color: statusBoardColors[status as TaskStatus],
+      name: extendedStatusLabels[status] || status,
+      color: extendedStatusColors[status] || 'hsl(var(--muted-foreground))',
     }));
 
     const data: KanbanTaskItem[] = Object.entries(groupedTasks).flatMap(
@@ -101,29 +107,31 @@ function TaskKanbanBoard({
       onDragEnd={onDragEnd}
     >
       {(column) => (
-        <KanbanBoard key={column.id} id={column.id}>
-          <KanbanHeader className="flex items-center justify-between px-3 py-2">
-            <div className="flex items-center gap-2">
+        <KanbanBoard key={column.id} id={column.id} className="bg-muted/30">
+          <KanbanHeader className="flex items-center justify-between px-2 py-1.5 bg-background/80 backdrop-blur-sm border-b">
+            <div className="flex items-center gap-1.5">
               <div
-                className="h-3 w-3 rounded-full"
+                className="h-1.5 w-1.5 rounded-full"
                 style={{ backgroundColor: column.color }}
               />
-              <span className="font-semibold">{column.name}</span>
-              <span className="text-xs text-muted-foreground">
-                {data.filter((item) => item.column === column.id).length}
+              <span className="font-bold text-[10px] tracking-tight">
+                {column.name}
               </span>
+              <div className="flex items-center justify-center min-w-[1.25rem] h-3.5 px-1 rounded-full bg-muted text-[8px] font-semibold text-muted-foreground">
+                {data.filter((item) => item.column === column.id).length}
+              </div>
             </div>
             {onCreateTask && (
               <button
                 onClick={onCreateTask}
-                className="text-muted-foreground hover:text-foreground text-xl leading-none"
+                className="flex items-center justify-center h-4 w-4 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors text-xs"
                 aria-label="Add task"
               >
                 +
               </button>
             )}
           </KanbanHeader>
-          <KanbanCards id={column.id} className="p-3">
+          <KanbanCards id={column.id} className="p-1.5 gap-1.5">
             {(item) => {
               const taskItem = item as KanbanTaskItem;
               const isSelected = selectedTask?.id === taskItem.id;
@@ -139,7 +147,8 @@ function TaskKanbanBoard({
                     name={taskItem.name}
                     column={taskItem.column}
                     className={cn(
-                      isSelected && 'ring-2 ring-primary'
+                      'border-border/40 bg-card hover:border-border hover:shadow-lg transition-all duration-200',
+                      isSelected && 'ring-1 ring-primary'
                     )}
                   >
                     <TaskCard

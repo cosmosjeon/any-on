@@ -1,6 +1,7 @@
 import { Outlet, useSearchParams } from 'react-router-dom';
-import { DevBanner } from '@/components/DevBanner';
 import { Navbar } from '@/components/layout/navbar';
+import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
+import { AppSidebar } from '@/components/layout/app-sidebar';
 
 export function NormalLayout() {
   const [searchParams] = useSearchParams();
@@ -8,12 +9,14 @@ export function NormalLayout() {
   const shouldHideNavbar = view === 'preview' || view === 'diffs';
 
   return (
-    <>
-      <DevBanner />
-      {!shouldHideNavbar && <Navbar />}
-      <div className="flex-1 min-h-0 overflow-hidden">
-        <Outlet />
-      </div>
-    </>
+    <SidebarProvider defaultOpen={true}>
+      <AppSidebar />
+      <SidebarInset className="flex flex-col flex-1">
+        {!shouldHideNavbar && <Navbar />}
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <Outlet />
+        </div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }

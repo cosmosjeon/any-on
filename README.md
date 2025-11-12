@@ -150,7 +150,7 @@ You can deploy the backend to a cloud VM while running the frontend locally for 
 git clone https://github.com/cosmos/any-on.git && cd any-on
 
 # 2. Configure .env.cloud (set HOST=0.0.0.0)
-# See CLOUD_DEPLOYMENT_GUIDE.md for details
+# See docs/guides/CLOUD_DEPLOYMENT_GUIDE.md for details
 
 # 3. Deploy with script
 ./scripts/deploy-cloud.sh
@@ -165,4 +165,4 @@ git clone https://github.com/cosmos/any-on.git && cd any-on
 ./scripts/start-local-frontend.sh
 ```
 
-For detailed instructions, troubleshooting, and security recommendations, see [CLOUD_DEPLOYMENT_GUIDE.md](./CLOUD_DEPLOYMENT_GUIDE.md).
+For detailed instructions, troubleshooting, and security recommendations, see [CLOUD_DEPLOYMENT_GUIDE.md](./docs/guides/CLOUD_DEPLOYMENT_GUIDE.md).

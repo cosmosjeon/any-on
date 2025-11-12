@@ -30,7 +30,6 @@ import {
 import { createPortal } from 'react-dom';
 import tunnel from 'tunnel-rat';
 import { Card } from '@/components/ui/card';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 
 const t = tunnel();
@@ -77,8 +76,8 @@ export const KanbanBoard = ({ id, children, className }: KanbanBoardProps) => {
   return (
     <div
       className={cn(
-        'flex size-full min-h-40 flex-col divide-y overflow-hidden rounded-md border bg-secondary text-xs shadow-sm ring-2 transition-colors',
-        isOver ? 'ring-primary' : 'ring-transparent',
+        'flex w-[220px] flex-shrink-0 flex-col divide-y overflow-hidden rounded border bg-background/50 text-xs shadow-sm ring-2 transition-all duration-200',
+        isOver ? 'ring-primary shadow-lg scale-[1.01]' : 'ring-transparent',
         className
       )}
       ref={setNodeRef}
@@ -118,27 +117,29 @@ export const KanbanCard = <T extends KanbanItemProps = KanbanItemProps>({
 
   return (
     <>
-      <div style={style} {...listeners} {...attributes} ref={setNodeRef}>
+      <div style={style} ref={setNodeRef}>
         <Card
+          {...listeners}
+          {...attributes}
           className={cn(
-            'cursor-grab gap-4 rounded-md p-3 shadow-sm',
+            'cursor-grab gap-2 rounded p-2 shadow-sm border hover:shadow-md touch-none',
             isDragging && 'pointer-events-none cursor-grabbing opacity-30',
             className
           )}
         >
-          {children ?? <p className="m-0 font-medium text-sm">{name}</p>}
+          {children ?? <p className="m-0 font-medium text-xs">{name}</p>}
         </Card>
       </div>
       {activeCardId === id && (
         <t.In>
           <Card
             className={cn(
-              'cursor-grab gap-4 rounded-md p-3 shadow-md ring-2 ring-primary',
+              'cursor-grab gap-2 rounded p-2 shadow-xl ring-2 ring-primary rotate-3 scale-105',
               isDragging && 'cursor-grabbing',
               className
             )}
           >
-            {children ?? <p className="m-0 font-medium text-sm">{name}</p>}
+            {children ?? <p className="m-0 font-medium text-xs">{name}</p>}
           </Card>
         </t.In>
       )}
@@ -162,24 +163,21 @@ export const KanbanCards = <T extends KanbanItemProps = KanbanItemProps>({
   const items = filteredData.map((item) => item.id);
 
   return (
-    <ScrollArea className="overflow-hidden">
-      <SortableContext items={items}>
-        <div
-          className={cn('flex flex-grow flex-col gap-2 p-2', className)}
-          {...props}
-        >
-          {filteredData.map(children)}
-        </div>
-      </SortableContext>
-      <ScrollBar orientation="vertical" />
-    </ScrollArea>
+    <SortableContext items={items}>
+      <div
+        className={cn('flex flex-col gap-1.5 p-1.5 min-h-[50px]', className)}
+        {...props}
+      >
+        {filteredData.map(children)}
+      </div>
+    </SortableContext>
   );
 };
 
 export type KanbanHeaderProps = HTMLAttributes<HTMLDivElement>;
 
 export const KanbanHeader = ({ className, ...props }: KanbanHeaderProps) => (
-  <div className={cn('m-0 p-2 font-semibold text-sm', className)} {...props} />
+  <div className={cn('m-0 px-2 py-1.5 font-semibold text-[10px]', className)} {...props} />
 );
 
 export type KanbanProviderProps<
@@ -326,13 +324,19 @@ export const KanbanProvider = <
         sensors={sensors}
         {...props}
       >
-        <div
-          className={cn(
-            'grid size-full auto-cols-fr grid-flow-col gap-4',
-            className
-          )}
-        >
-          {columns.map((column) => children(column))}
+        <div className="w-full h-full overflow-x-auto overflow-y-hidden px-2 py-2">
+          <div
+            className={cn(
+              'grid grid-flow-col gap-2 items-start',
+              className
+            )}
+            style={{
+              gridAutoColumns: '220px',
+              minWidth: 'min-content',
+            }}
+          >
+            {columns.map((column) => children(column))}
+          </div>
         </div>
         {typeof window !== 'undefined' &&
           createPortal(
