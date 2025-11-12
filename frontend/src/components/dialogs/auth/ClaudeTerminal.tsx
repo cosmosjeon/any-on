@@ -63,18 +63,46 @@ export function ClaudeTerminal({ onClose, onSuccess }: ClaudeTerminalProps) {
     }
   }, []);
 
+  const setupTerminalDataListener = useCallback(() => {
+    const ws = wsRef.current;
+    const term = termRef.current;
+
+    if (!ws || !term) return;
+
+    // Clean up existing listener
+    terminalDataDisposableRef.current?.dispose();
+
+    // Set up new listener
+    terminalDataDisposableRef.current = term.onData((data) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        console.log('📤 [ClaudeTerminal] Sending user input to PTY');
+        ws.send(data);
+      } else {
+        console.warn('⚠️ [ClaudeTerminal] Cannot send data, WebSocket not open:', ws.readyState);
+      }
+    });
+
+    console.log('🎧 [ClaudeTerminal] Terminal data listener set up');
+  }, []);
+
   const connectWebSocket = useCallback(() => {
-    if (unmountedRef.current) return;
+    if (unmountedRef.current) {
+      console.log('⏹️  [ClaudeTerminal] Not connecting - component unmounted');
+      return;
+    }
 
     if (wsRef.current) {
       const state = wsRef.current.readyState;
       if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) {
+        console.log('⏭️  [ClaudeTerminal] WebSocket already connected/connecting, skipping');
         return;
       }
     }
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/api/auth/claude/pty`;
+    console.log('🔌 [ClaudeTerminal] Connecting to:', wsUrl);
+
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
     successHandledRef.current = false;
@@ -83,30 +111,23 @@ export function ClaudeTerminal({ onClose, onSuccess }: ClaudeTerminalProps) {
     ws.binaryType = 'arraybuffer';
 
     ws.onopen = () => {
-      console.log('🔌 [ClaudeTerminal] WebSocket connected');
+      console.log('✅ [ClaudeTerminal] WebSocket connected successfully');
       termRef.current?.writeln('Connected to Claude Code login...\r\n');
+
+      // Set up terminal data listener now that WebSocket is open
+      setupTerminalDataListener();
     };
 
     ws.onmessage = (event) => {
-      if (!termRef.current) return;
-      if (event.data instanceof ArrayBuffer) {
-        const data = new Uint8Array(event.data);
-        const decoder = decoderRef.current ?? new TextDecoder();
-        decoderRef.current = decoder;
-        const decoded = decoder.decode(data, { stream: true });
-        console.log('📦 [ClaudeTerminal] Received binary data:', {
-          bytes: data.length,
-          decoded: decoded.substring(0, 100),
-        });
-        termRef.current.write(data);
-        appendLiveLog(decoded);
-      } else if (typeof event.data === 'string') {
+      // Handle text messages (including metadata and success messages)
+      if (typeof event.data === 'string') {
         console.log('📨 [ClaudeTerminal] Received text message:', {
           length: event.data.length,
           preview: event.data.substring(0, 100),
           full: event.data,
         });
 
+        // Handle metadata
         if (event.data.startsWith('__CLAUDE_META__:')) {
           const metaPayload = event.data.replace('__CLAUDE_META__:', '');
           console.log('📋 [ClaudeTerminal] Processing metadata:', metaPayload);
@@ -128,9 +149,13 @@ export function ClaudeTerminal({ onClose, onSuccess }: ClaudeTerminalProps) {
           return;
         }
 
-        termRef.current.write(event.data);
+        // Write to terminal if available
+        if (termRef.current) {
+          termRef.current.write(event.data);
+        }
         appendLiveLog(event.data);
 
+        // Check for success markers (ALWAYS check, even if terminal is not ready)
         console.log('🔍 [ClaudeTerminal] Checking for success markers:', {
           successHandled: successHandledRef.current,
           markers: SUCCESS_MARKERS,
@@ -158,27 +183,55 @@ export function ClaudeTerminal({ onClose, onSuccess }: ClaudeTerminalProps) {
             onSuccess?.();
           }, 500);
         }
+      } else if (event.data instanceof ArrayBuffer) {
+        // Handle binary data
+        const data = new Uint8Array(event.data);
+        const decoder = decoderRef.current ?? new TextDecoder();
+        decoderRef.current = decoder;
+        const decoded = decoder.decode(data, { stream: true });
+        console.log('📦 [ClaudeTerminal] Received binary data:', {
+          bytes: data.length,
+          decoded: decoded.substring(0, 100),
+        });
+
+        // Write to terminal if available
+        if (termRef.current) {
+          termRef.current.write(data);
+        }
+        appendLiveLog(decoded);
       }
     };
 
     ws.onerror = (error) => {
       console.error('❌ [ClaudeTerminal] WebSocket error:', error);
-      termRef.current?.writeln(`\r\nWebSocket error: ${error}\r\n`);
+      termRef.current?.writeln(`\r\nWebSocket error occurred\r\n`);
     };
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       console.log('🔌 [ClaudeTerminal] WebSocket closed', {
+        code: event.code,
+        reason: event.reason,
+        wasClean: event.wasClean,
         successHandled: successHandledRef.current,
         unmounted: unmountedRef.current,
         sessionId: sessionIdRef.current,
       });
 
+      // Clean up terminal listener
+      terminalDataDisposableRef.current?.dispose();
+      terminalDataDisposableRef.current = null;
+
       const decoder = decoderRef.current;
       if (decoder) {
         const remaining = decoder.decode();
-        appendLiveLog(remaining);
+        if (remaining) {
+          appendLiveLog(remaining);
+        }
       }
-      termRef.current?.writeln('\r\nConnection closed.\r\n');
+
+      if (termRef.current && !successHandledRef.current) {
+        termRef.current.writeln('\r\nConnection closed.\r\n');
+      }
 
       if (!hasFetchedLogsRef.current && sessionIdRef.current) {
         console.log(
@@ -188,16 +241,18 @@ export function ClaudeTerminal({ onClose, onSuccess }: ClaudeTerminalProps) {
         void fetchLogs();
       }
 
+      // Only reconnect if not unmounted and not successful
       if (!unmountedRef.current && !successHandledRef.current) {
         console.log(
-          '🔄 [ClaudeTerminal] Scheduling reconnect in 1 second (not successful yet)',
+          '🔄 [ClaudeTerminal] Scheduling reconnect in 2 seconds (not successful yet)',
         );
         if (reconnectTimerRef.current) {
           window.clearTimeout(reconnectTimerRef.current);
         }
         reconnectTimerRef.current = window.setTimeout(() => {
+          console.log('🔄 [ClaudeTerminal] Attempting reconnection...');
           connectWebSocket();
-        }, 1000);
+        }, 2000);
       } else {
         console.log('⏹️  [ClaudeTerminal] Not reconnecting', {
           unmounted: unmountedRef.current,
@@ -205,16 +260,7 @@ export function ClaudeTerminal({ onClose, onSuccess }: ClaudeTerminalProps) {
         });
       }
     };
-
-    if (termRef.current) {
-      terminalDataDisposableRef.current?.dispose();
-      terminalDataDisposableRef.current = termRef.current.onData((data) => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(data);
-        }
-      });
-    }
-  }, [appendLiveLog, fetchLogs, onSuccess]);
+  }, [appendLiveLog, fetchLogs, onSuccess, setupTerminalDataListener]);
 
   useEffect(() => {
     setLiveLog('');
