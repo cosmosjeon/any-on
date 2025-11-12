@@ -23,8 +23,20 @@ pub enum AnyonError {
     Other(#[from] AnyhowError),
 }
 
+fn load_environment() {
+    if dotenvy::dotenv().is_ok() {
+        return;
+    }
+
+    #[cfg(feature = "cloud")]
+    {
+        let _ = dotenvy::from_filename(".env.cloud");
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), AnyonError> {
+    load_environment();
     sentry_utils::init_once(SentrySource::Backend);
 
     let log_level = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string());

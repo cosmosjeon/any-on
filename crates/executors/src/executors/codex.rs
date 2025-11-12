@@ -30,8 +30,8 @@ use self::{
 use crate::{
     approvals::ExecutorApprovalService,
     command::{
-        CmdOverrides, CommandBuilder, CommandParts, CommandRuntime, ExecutionCommand,
-        StdioConfig, apply_overrides,
+        CmdOverrides, CommandBuilder, CommandParts, CommandRuntime, ExecutionCommand, StdioConfig,
+        apply_overrides,
     },
     executors::{
         AppendPrompt, ExecutorError, SpawnedChild, StandardCodingAgentExecutor,
@@ -161,8 +161,14 @@ impl StandardCodingAgentExecutor for Codex {
         runtime: &dyn CommandRuntime,
     ) -> Result<SpawnedChild, ExecutorError> {
         let command_parts = self.build_command_builder().build_follow_up(&[])?;
-        self.spawn(current_dir, prompt, command_parts, Some(session_id), runtime)
-            .await
+        self.spawn(
+            current_dir,
+            prompt,
+            command_parts,
+            Some(session_id),
+            runtime,
+        )
+        .await
     }
 
     fn normalize_logs(&self, msg_store: Arc<MsgStore>, worktree_path: &Path) {

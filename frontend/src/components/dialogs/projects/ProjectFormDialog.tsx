@@ -14,6 +14,15 @@ import NiceModal, { useModal } from '@ebay/nice-modal-react';
 import { useProjectMutations } from '@/hooks/useProjectMutations';
 import { useUserSystem } from '@/components/config-provider';
 
+const INVALID_PROJECT_NAME_MESSAGE =
+  'Project name cannot contain / \\ : * ? " < > | or control characters.';
+const INVALID_PROJECT_NAME_CHARS = ['/', '\\', ':', '*', '?', '"', '<', '>', '|'];
+
+const containsInvalidProjectNameChars = (value: string) =>
+  [...value].some(
+    (char) => char.charCodeAt(0) < 32 || INVALID_PROJECT_NAME_CHARS.includes(char)
+  );
+
 export interface ProjectFormDialogProps {
   // No props needed - this is only for creating projects now
 }
@@ -59,9 +68,22 @@ export const ProjectFormDialog = NiceModal.create<ProjectFormDialogProps>(
     // Handle direct project creation from repo selection
     const handleDirectCreate = async (path: string, suggestedName: string) => {
       setError('');
+      const finalName = suggestedName.trim();
+
+      if (!finalName) {
+        setError('Project name is required');
+        return;
+      }
+
+      if (containsInvalidProjectNameChars(finalName)) {
+        setError(INVALID_PROJECT_NAME_MESSAGE);
+        return;
+      }
+
+      setName(finalName);
 
       const createData: CreateProject = {
-        name: suggestedName,
+        name: finalName,
         git_repo_path: path,
         use_existing_repo: true,
         setup_script: null,
@@ -104,6 +126,13 @@ export const ProjectFormDialog = NiceModal.create<ProjectFormDialogProps>(
         setError('Project name is required');
         return;
       }
+
+      if (containsInvalidProjectNameChars(finalName)) {
+        setError(INVALID_PROJECT_NAME_MESSAGE);
+        return;
+      }
+
+      setName(finalName);
 
       // Creating new project (Replit-style: no path needed)
       const createData: CreateProject = {

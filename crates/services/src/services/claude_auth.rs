@@ -12,16 +12,16 @@ use tokio::{
     fs as async_fs,
     io::{AsyncBufReadExt, AsyncRead, AsyncWriteExt, BufReader},
     process::{Child, ChildStdin, Command},
-    sync::{broadcast, mpsc, Mutex},
+    sync::{Mutex, broadcast, mpsc},
     task::JoinHandle,
 };
 use tokio_stream::wrappers::BroadcastStream;
+use utils::path::get_anyon_temp_dir;
 use uuid::Uuid;
 
-use crate::services::secret_store::{SecretStore, SecretStoreError, SECRET_CLAUDE_ACCESS};
-use utils::path::get_anyon_temp_dir;
+use crate::services::secret_store::{SECRET_CLAUDE_ACCESS, SecretStore, SecretStoreError};
 
-const CLAUDE_LOGIN_DEFAULT_CMD: &str = "claude login --stdio";
+const CLAUDE_LOGIN_DEFAULT_CMD: &str = "unbuffer npx -y @anthropic-ai/claude-code@2.0.31 login";
 
 #[derive(Debug, Error)]
 pub enum ClaudeAuthError {
@@ -103,10 +103,27 @@ impl ClaudeAuthManager {
         let home_dir = self.prepare_home_dir(&session_id)?;
         let mut command = self.build_command(&home_dir)?;
 
+        tracing::info!(
+            session_id = %session_id,
+            home_dir = %home_dir.display(),
+            command = ?self.command,
+            "Starting Claude login session"
+        );
+
         command.kill_on_drop(true);
-        let mut child = command
-            .spawn()
-            .map_err(|err| ClaudeAuthError::Spawn(err.to_string()))?;
+        let mut child = command.spawn().map_err(|err| {
+            tracing::error!(
+                session_id = %session_id,
+                error = %err,
+                "Failed to spawn Claude CLI process"
+            );
+            ClaudeAuthError::Spawn(err.to_string())
+        })?;
+
+        tracing::debug!(
+            session_id = %session_id,
+            "Claude CLI process spawned successfully"
+        );
 
         let stdout = child
             .stdout
@@ -166,7 +183,11 @@ impl ClaudeAuthManager {
         Ok(BroadcastStream::new(session.events_tx.subscribe()))
     }
 
-    pub async fn send_input(&self, session_id: &Uuid, input: String) -> Result<(), ClaudeAuthError> {
+    pub async fn send_input(
+        &self,
+        session_id: &Uuid,
+        input: String,
+    ) -> Result<(), ClaudeAuthError> {
         let session = self
             .sessions
             .get(session_id)
@@ -216,6 +237,13 @@ impl ClaudeAuthManager {
         let mut command = Command::new(program);
         command.args(parts);
         command.env("HOME", home_dir);
+        // Force unbuffered output for npx and Node.js processes
+        command.env("NODE_NO_WARNINGS", "1");
+        command.env("FORCE_COLOR", "0");
+        command.env("NPM_CONFIG_COLOR", "false");
+        // Disable Node.js output buffering
+        command.env("NODE_OPTIONS", "--no-warnings");
+        command.env("UV_NO_WARNINGS", "1");
         command.stdin(std::process::Stdio::piped());
         command.stdout(std::process::Stdio::piped());
         command.stderr(std::process::Stdio::piped());
@@ -238,9 +266,22 @@ impl ClaudeAuthManager {
             let status = {
                 let mut guard = child.lock().await;
                 if let Some(mut child) = guard.take() {
+                    tracing::debug!(session_id = %session_id, "Waiting for Claude CLI process to exit");
                     match child.wait().await {
-                        Ok(status) => status,
+                        Ok(status) => {
+                            tracing::info!(
+                                session_id = %session_id,
+                                exit_code = ?status.code(),
+                                "Claude CLI process exited"
+                            );
+                            status
+                        }
                         Err(err) => {
+                            tracing::error!(
+                                session_id = %session_id,
+                                error = %err,
+                                "Claude CLI process wait failed"
+                            );
                             let _ = events_tx.send(ClaudeAuthEvent::Error {
                                 message: format!("Claude CLI failed: {err}"),
                             });
@@ -249,6 +290,7 @@ impl ClaudeAuthManager {
                         }
                     }
                 } else {
+                    tracing::warn!(session_id = %session_id, "Child process already taken");
                     return;
                 }
             };
@@ -302,19 +344,19 @@ impl ClaudeAuthManager {
             if line.trim().is_empty() {
                 continue;
             }
+            tracing::debug!("CLI output line: {}", line);
             let _ = events_tx.send(ClaudeAuthEvent::Output { line });
         }
+        tracing::debug!("CLI pipe closed");
     }
 
-    async fn pump_stdin(
-        handle: Arc<Mutex<Option<ChildStdin>>>,
-        mut rx: mpsc::Receiver<String>,
-    ) {
+    async fn pump_stdin(handle: Arc<Mutex<Option<ChildStdin>>>, mut rx: mpsc::Receiver<String>) {
         while let Some(input) = rx.recv().await {
             let trimmed = input.trim();
             if trimmed.is_empty() {
                 continue;
             }
+            tracing::info!(input = %trimmed, "Sending input to Claude CLI");
             let mut guard = handle.lock().await;
             if let Some(stdin) = guard.as_mut() {
                 if stdin
@@ -322,10 +364,16 @@ impl ClaudeAuthManager {
                     .await
                     .is_err()
                 {
+                    tracing::error!("Failed to write to Claude CLI stdin");
                     break;
                 }
-                let _ = stdin.flush().await;
+                if let Err(e) = stdin.flush().await {
+                    tracing::error!(error = %e, "Failed to flush Claude CLI stdin");
+                    break;
+                }
+                tracing::info!("Successfully sent input to Claude CLI");
             } else {
+                tracing::warn!("Claude CLI stdin handle is None");
                 break;
             }
         }

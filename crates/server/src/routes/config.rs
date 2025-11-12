@@ -18,7 +18,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use services::services::{
     config::{Config, ConfigError, SoundFile, save_config_to_file},
-    secret_store::{SECRET_CLAUDE_ACCESS, SECRET_GITHUB_OAUTH, SECRET_GITHUB_PAT, SecretStoreError},
+    secret_store::{
+        SECRET_CLAUDE_ACCESS, SECRET_GITHUB_OAUTH, SECRET_GITHUB_PAT, SecretStoreError,
+    },
 };
 use tokio::fs;
 use ts_rs::TS;

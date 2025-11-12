@@ -69,6 +69,19 @@ export type {
   UpdateRetryFollowUpDraftRequest,
 } from 'shared/types';
 
+export type ClaudePtyLogDirection = 'input' | 'output';
+
+export interface ClaudePtyLogEntry {
+  timestamp: number;
+  direction: ClaudePtyLogDirection;
+  data: string;
+}
+
+interface ClaudePtySessionLogResponse {
+  session_id: string;
+  entries: ClaudePtyLogEntry[];
+}
+
 class ApiError<E = unknown> extends Error {
   public status?: number;
   public error_data?: E;
@@ -720,6 +733,14 @@ export const claudeAuthApi = {
       method: 'POST',
     });
     return handleApiResponse<void>(response);
+  },
+  getPtySessionLog: async (sessionId: string): Promise<ClaudePtyLogEntry[]> => {
+    const response = await makeRequest(
+      `/api/auth/claude/pty/session/${sessionId}/log`
+    );
+    const data =
+      await handleApiResponse<ClaudePtySessionLogResponse>(response);
+    return data.entries;
   },
 };
 

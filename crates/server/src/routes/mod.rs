@@ -3,6 +3,7 @@ use axum::{
     middleware::from_fn_with_state,
     routing::{IntoMakeService, get},
 };
+use tower_http::cors::{Any, CorsLayer};
 
 use crate::DeploymentImpl;
 
@@ -25,6 +26,29 @@ pub mod task_attempts;
 pub mod tasks;
 
 pub fn router(deployment: DeploymentImpl) -> IntoMakeService<Router> {
+    // Configure CORS
+    // Default: Allow all origins for development
+    // Set CORS_ALLOWED_ORIGINS env var to restrict (comma-separated list)
+    let cors = if let Ok(origins) = std::env::var("CORS_ALLOWED_ORIGINS") {
+        let allowed_origins: Vec<_> = origins
+            .split(',')
+            .filter(|s| !s.is_empty())
+            .map(|s| s.trim().parse().expect("Invalid CORS origin"))
+            .collect();
+
+        CorsLayer::new()
+            .allow_origin(allowed_origins)
+            .allow_methods(Any)
+            .allow_headers(Any)
+            .allow_credentials(true)
+    } else {
+        // Development mode: allow all origins
+        CorsLayer::new()
+            .allow_origin(Any)
+            .allow_methods(Any)
+            .allow_headers(Any)
+    };
+
     // Create routers with different middleware layers
     let routes = Router::new()
         .route("/health", get(health::health_check))
@@ -37,10 +61,10 @@ pub fn router(deployment: DeploymentImpl) -> IntoMakeService<Router> {
         .merge(execution_processes::router(&deployment))
         .merge(tags::router(&deployment))
         .merge(auth::router(&deployment))
-        .merge(filesystem::router())
+        .merge(filesystem::router(&deployment))
         .merge(events::router(&deployment))
-        .merge(approvals::router())
-        .nest("/images", images::routes())
+        .merge(approvals::router(&deployment))
+        .nest("/images", images::routes(&deployment))
         .layer(from_fn_with_state(
             deployment.clone(),
             auth::sentry_user_context_middleware,
@@ -58,5 +82,6 @@ pub fn router(deployment: DeploymentImpl) -> IntoMakeService<Router> {
         .route("/", get(frontend::serve_frontend_root))
         .route("/{*path}", get(frontend::serve_frontend))
         .nest("/api", base_routes)
+        .layer(cors)
         .into_make_service()
 }

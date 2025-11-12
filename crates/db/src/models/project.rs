@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, SqlitePool};
+use sqlx::{FromRow, Sqlite, SqlitePool};
 use thiserror::Error;
 use ts_rs::TS;
 use uuid::Uuid;
@@ -79,10 +79,38 @@ impl Project {
             .await
     }
 
+    /// Find all projects (no user filtering - use find_by_user instead for multi-user)
+    /// ⚠️ DEPRECATED: Use find_by_user for multi-user support
     pub async fn find_all(pool: &SqlitePool) -> Result<Vec<Self>, sqlx::Error> {
         sqlx::query_as!(
             Project,
             r#"SELECT id as "id!: Uuid", name, git_repo_path, setup_script, dev_script, cleanup_script, copy_files, created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>" FROM projects ORDER BY created_at DESC"#
+        )
+        .fetch_all(pool)
+        .await
+    }
+
+    /// Find projects for a specific user (multi-user support)
+    /// This is the recommended method for querying user-specific projects
+    pub async fn find_by_user(pool: &SqlitePool, user_id: &str) -> Result<Vec<Self>, sqlx::Error> {
+        sqlx::query_as!(
+            Project,
+            r#"
+            SELECT
+                id as "id!: Uuid",
+                name,
+                git_repo_path,
+                setup_script,
+                dev_script,
+                cleanup_script,
+                copy_files,
+                created_at as "created_at!: DateTime<Utc>",
+                updated_at as "updated_at!: DateTime<Utc>"
+            FROM projects
+            WHERE user_id = $1
+            ORDER BY updated_at DESC
+            "#,
+            user_id
         )
         .fetch_all(pool)
         .await
@@ -110,11 +138,43 @@ impl Project {
         .await
     }
 
+    /// Find project by ID (no user filtering - use find_by_id_for_user instead)
+    /// ⚠️ DEPRECATED: Use find_by_id_for_user for multi-user support
     pub async fn find_by_id(pool: &SqlitePool, id: Uuid) -> Result<Option<Self>, sqlx::Error> {
         sqlx::query_as!(
             Project,
             r#"SELECT id as "id!: Uuid", name, git_repo_path, setup_script, dev_script, cleanup_script, copy_files, created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>" FROM projects WHERE id = $1"#,
             id
+        )
+        .fetch_optional(pool)
+        .await
+    }
+
+    /// Find project by ID with user ownership verification (multi-user support)
+    /// Returns None if project doesn't exist OR doesn't belong to the user
+    pub async fn find_by_id_for_user(
+        pool: &SqlitePool,
+        id: Uuid,
+        user_id: &str,
+    ) -> Result<Option<Self>, sqlx::Error> {
+        sqlx::query_as!(
+            Project,
+            r#"
+            SELECT
+                id as "id!: Uuid",
+                name,
+                git_repo_path,
+                setup_script,
+                dev_script,
+                cleanup_script,
+                copy_files,
+                created_at as "created_at!: DateTime<Utc>",
+                updated_at as "updated_at!: DateTime<Utc>"
+            FROM projects
+            WHERE id = $1 AND user_id = $2
+            "#,
+            id,
+            user_id
         )
         .fetch_optional(pool)
         .await
@@ -148,15 +208,21 @@ impl Project {
         .await
     }
 
-    pub async fn create(
-        pool: &SqlitePool,
+    /// Create a new project (multi-user support)
+    pub async fn create<'e, E>(
+        executor: E,
         data: &CreateProject,
         project_id: Uuid,
-    ) -> Result<Self, sqlx::Error> {
+        user_id: &str, // ✅ Added for multi-user support
+    ) -> Result<Self, sqlx::Error>
+    where
+        E: sqlx::Executor<'e, Database = Sqlite>,
+    {
         sqlx::query_as!(
             Project,
-            r#"INSERT INTO projects (id, name, git_repo_path, setup_script, dev_script, cleanup_script, copy_files) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id as "id!: Uuid", name, git_repo_path, setup_script, dev_script, cleanup_script, copy_files, created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>""#,
+            r#"INSERT INTO projects (id, user_id, name, git_repo_path, setup_script, dev_script, cleanup_script, copy_files) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id as "id!: Uuid", name, git_repo_path, setup_script, dev_script, cleanup_script, copy_files, created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>""#,
             project_id,
+            user_id,  // ✅ Added
             data.name,
             data.git_repo_path,
             data.setup_script,
@@ -164,7 +230,7 @@ impl Project {
             data.cleanup_script,
             data.copy_files
         )
-        .fetch_one(pool)
+        .fetch_one(executor)
         .await
     }
 
@@ -214,5 +280,22 @@ impl Project {
         .await?;
 
         Ok(result.count > 0)
+    }
+
+    /// Claim all orphaned projects (user_id IS NULL) for the given user
+    /// Returns the number of projects claimed
+    pub async fn claim_orphaned(pool: &SqlitePool, user_id: &str) -> Result<u64, sqlx::Error> {
+        let result = sqlx::query!(
+            r#"
+                UPDATE projects
+                SET user_id = $1
+                WHERE user_id IS NULL
+            "#,
+            user_id
+        )
+        .execute(pool)
+        .await?;
+
+        Ok(result.rows_affected())
     }
 }

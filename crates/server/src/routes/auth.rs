@@ -1,24 +1,33 @@
 use axum::{
-    Json,
-    Router,
-    extract::{Path, Request, State},
+    Json, Router,
+    extract::{
+        Path, Request, State,
+        ws::{WebSocket, WebSocketUpgrade},
+    },
     http::StatusCode,
     middleware::{Next, from_fn_with_state},
-    response::{Json as ResponseJson, Response, Sse, sse::{Event, KeepAlive}},
+    response::{
+        Json as ResponseJson, Response, Sse,
+        sse::{Event, KeepAlive},
+    },
     routing::{get, post},
 };
+use db::models::{
+    draft::Draft, image::Image, project::Project, tag::Tag, task::Task, task_attempt::TaskAttempt,
+};
 use deployment::{Deployment, DeploymentError};
+use futures_util::{sink::SinkExt, stream::StreamExt};
 use octocrab::auth::Continue;
 use serde::{Deserialize, Serialize};
 use services::services::{
     auth::{AuthError, DeviceFlowStartResponse},
+    claude_auth_pty::ClaudePtyLogEntry,
     config::save_config_to_file,
     github_service::{GitHubService, GitHubServiceError},
     secret_store::{SECRET_CLAUDE_ACCESS, SECRET_GITHUB_OAUTH},
 };
-use futures_util::StreamExt;
-use uuid::Uuid;
 use utils::response::ApiResponse;
+use uuid::Uuid;
 
 use crate::{DeploymentImpl, error::ApiError};
 
@@ -41,6 +50,11 @@ pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
             post(claude_session_cancel),
         )
         .route("/auth/claude/logout", post(claude_logout))
+        .route("/auth/claude/pty", get(claude_pty_websocket))
+        .route(
+            "/auth/claude/pty/session/{session_id}/log",
+            get(claude_pty_session_log),
+        )
         .layer(from_fn_with_state(
             deployment.clone(),
             sentry_user_context_middleware,
@@ -83,6 +97,13 @@ pub struct ClaudeSessionInput {
     pub input: String,
 }
 
+#[derive(Serialize)]
+pub struct ClaudePtySessionLogResponse {
+    #[serde(rename = "session_id")]
+    pub session_id: Uuid,
+    pub entries: Vec<ClaudePtyLogEntry>,
+}
+
 /// POST /auth/github/device/poll
 async fn device_poll(
     State(deployment): State<DeploymentImpl>,
@@ -123,6 +144,159 @@ async fn device_poll(
         config.github_login_acknowledged = true; // Also acknowledge the GitHub login step
         save_config_to_file(&config.clone(), &config_path).await?;
     }
+
+    // Claim orphaned data for first-time login
+    // Get GitHub user ID and claim all data with user_id IS NULL
+    {
+        let gh = GitHubService::new(&user_info.token)?;
+        match deployment
+            .github_user_cache()
+            .get_or_fetch(&user_info.token, &gh)
+            .await
+        {
+            Ok(github_user) => {
+                let user_id = format!("github_{}", github_user.id);
+                tracing::info!("Claiming orphaned data for user: {}", user_id);
+
+                // Claim projects
+                match Project::claim_orphaned(&deployment.db().pool, &user_id).await {
+                    Ok(count) if count > 0 => {
+                        tracing::info!("Claimed {} orphaned projects", count);
+                        deployment
+                            .track_if_analytics_allowed(
+                                "orphaned_data_claimed",
+                                serde_json::json!({
+                                    "type": "projects",
+                                    "count": count,
+                                }),
+                            )
+                            .await;
+                    }
+                    Ok(_) => {
+                        tracing::debug!("No orphaned projects to claim");
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to claim orphaned projects: {}", e);
+                    }
+                }
+
+                // Claim tasks
+                match Task::claim_orphaned(&deployment.db().pool, &user_id).await {
+                    Ok(count) if count > 0 => {
+                        tracing::info!("Claimed {} orphaned tasks", count);
+                        deployment
+                            .track_if_analytics_allowed(
+                                "orphaned_data_claimed",
+                                serde_json::json!({
+                                    "type": "tasks",
+                                    "count": count,
+                                }),
+                            )
+                            .await;
+                    }
+                    Ok(_) => {
+                        tracing::debug!("No orphaned tasks to claim");
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to claim orphaned tasks: {}", e);
+                    }
+                }
+
+                // Claim task attempts
+                match TaskAttempt::claim_orphaned(&deployment.db().pool, &user_id).await {
+                    Ok(count) if count > 0 => {
+                        tracing::info!("Claimed {} orphaned task attempts", count);
+                        deployment
+                            .track_if_analytics_allowed(
+                                "orphaned_data_claimed",
+                                serde_json::json!({
+                                    "type": "task_attempts",
+                                    "count": count,
+                                }),
+                            )
+                            .await;
+                    }
+                    Ok(_) => {
+                        tracing::debug!("No orphaned task attempts to claim");
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to claim orphaned task attempts: {}", e);
+                    }
+                }
+
+                // Claim tags
+                match Tag::claim_orphaned(&deployment.db().pool, &user_id).await {
+                    Ok(count) if count > 0 => {
+                        tracing::info!("Claimed {} orphaned tags", count);
+                        deployment
+                            .track_if_analytics_allowed(
+                                "orphaned_data_claimed",
+                                serde_json::json!({
+                                    "type": "tags",
+                                    "count": count,
+                                }),
+                            )
+                            .await;
+                    }
+                    Ok(_) => {
+                        tracing::debug!("No orphaned tags to claim");
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to claim orphaned tags: {}", e);
+                    }
+                }
+
+                // Claim images
+                match Image::claim_orphaned(&deployment.db().pool, &user_id).await {
+                    Ok(count) if count > 0 => {
+                        tracing::info!("Claimed {} orphaned images", count);
+                        deployment
+                            .track_if_analytics_allowed(
+                                "orphaned_data_claimed",
+                                serde_json::json!({
+                                    "type": "images",
+                                    "count": count,
+                                }),
+                            )
+                            .await;
+                    }
+                    Ok(_) => {
+                        tracing::debug!("No orphaned images to claim");
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to claim orphaned images: {}", e);
+                    }
+                }
+
+                // Claim drafts
+                match Draft::claim_orphaned(&deployment.db().pool, &user_id).await {
+                    Ok(count) if count > 0 => {
+                        tracing::info!("Claimed {} orphaned drafts", count);
+                        deployment
+                            .track_if_analytics_allowed(
+                                "orphaned_data_claimed",
+                                serde_json::json!({
+                                    "type": "drafts",
+                                    "count": count,
+                                }),
+                            )
+                            .await;
+                    }
+                    Ok(_) => {
+                        tracing::debug!("No orphaned drafts to claim");
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to claim orphaned drafts: {}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                // Log error but don't fail the entire login process
+                tracing::error!("Failed to fetch GitHub user for orphaned data claim: {}", e);
+            }
+        }
+    }
+
     let _ = deployment.update_sentry_scope().await;
     let props = serde_json::json!({
         "username": user_info.username,
@@ -164,12 +338,19 @@ async fn github_check_token(
 async fn claude_session_start(
     State(deployment): State<DeploymentImpl>,
 ) -> Result<ResponseJson<ApiResponse<ClaudeSessionResponse>>, ApiError> {
+    tracing::info!("Received Claude session start request");
     let session_id = deployment
         .claude_auth()
         .start_session()
         .await
-        .map_err(|err| ApiError::Deployment(err.into()))?;
-    Ok(ResponseJson(ApiResponse::success(ClaudeSessionResponse { session_id })))
+        .map_err(|err| {
+            tracing::error!("Failed to start Claude session: {}", err);
+            ApiError::Deployment(err.into())
+        })?;
+    tracing::info!(session_id = %session_id, "Claude session started successfully");
+    Ok(ResponseJson(ApiResponse::success(ClaudeSessionResponse {
+        session_id,
+    })))
 }
 
 async fn claude_session_stream(
@@ -185,9 +366,9 @@ async fn claude_session_stream(
         match item {
             Ok(payload) => match Event::default().json_data(&payload) {
                 Ok(event) => Some(Ok(event)),
-                Err(err) => Some(Err(ApiError::Deployment(
-                    DeploymentError::Other(err.into()),
-                ))),
+                Err(err) => Some(Err(ApiError::Deployment(DeploymentError::Other(
+                    err.into(),
+                )))),
             },
             Err(_) => None,
         }
@@ -229,6 +410,250 @@ async fn claude_logout(
         .delete_secret(deployment.user_id(), SECRET_CLAUDE_ACCESS)
         .await?;
     Ok(ResponseJson(ApiResponse::success(())))
+}
+
+/// WebSocket endpoint for PTY-based Claude login
+async fn claude_pty_websocket(
+    ws: WebSocketUpgrade,
+    State(deployment): State<DeploymentImpl>,
+) -> Response {
+    ws.on_upgrade(move |socket| handle_claude_pty(socket, deployment))
+}
+
+async fn claude_pty_session_log(
+    Path(session_id): Path<Uuid>,
+    State(deployment): State<DeploymentImpl>,
+) -> Result<ResponseJson<ApiResponse<ClaudePtySessionLogResponse>>, ApiError> {
+    let entries = deployment
+        .claude_auth_pty()
+        .get_logs(&session_id)
+        .await
+        .map_err(|err| ApiError::Deployment(DeploymentError::Other(err.into())))?;
+
+    let response = ClaudePtySessionLogResponse {
+        session_id,
+        entries,
+    };
+
+    Ok(ResponseJson(ApiResponse::success(response)))
+}
+
+async fn handle_claude_pty(mut socket: WebSocket, deployment: DeploymentImpl) {
+    // Start PTY session
+    let session_id = match deployment
+        .claude_auth_pty()
+        .start_session(deployment.user_id())
+        .await
+    {
+        Ok(id) => id,
+        Err(e) => {
+            tracing::error!(error = %e, "Failed to start PTY session");
+            let _ = socket
+                .send(axum::extract::ws::Message::Text(
+                    format!("Error: {}", e).into(),
+                ))
+                .await;
+            return;
+        }
+    };
+
+    tracing::info!(session_id = %session_id, "PTY session started");
+
+    // Spawn task to read from PTY and send to WebSocket
+    let deployment_clone = deployment.clone();
+    let deployment_check = deployment.clone();
+    let user_id = deployment.user_id().to_string();
+    let (mut ws_sender, mut ws_receiver) = socket.split();
+    let (success_tx, mut success_rx) = tokio::sync::mpsc::channel::<()>(1);
+
+    let read_task = tokio::spawn(async move {
+        let mut buf = vec![0u8; 8192];
+        let meta_message = format!("__CLAUDE_META__{{\"sessionId\":\"{}\"}}", session_id);
+        tracing::debug!(
+            session_id = %session_id,
+            "📤 Sending session metadata to frontend"
+        );
+        let _ = ws_sender
+            .send(axum::extract::ws::Message::Text(meta_message.into()))
+            .await;
+        loop {
+            tokio::select! {
+                result = deployment_clone.claude_auth_pty().read_output(&session_id, &mut buf) => {
+                    match result {
+                        Ok(0) => {
+                            tracing::debug!(
+                                session_id = %session_id,
+                                "📭 PTY output EOF reached"
+                            );
+                            break;
+                        }
+                        Ok(n) => {
+                            tracing::trace!(
+                                session_id = %session_id,
+                                bytes = n,
+                                "📨 Sending PTY output to WebSocket"
+                            );
+                            if ws_sender
+                                .send(axum::extract::ws::Message::Binary(buf[..n].to_vec().into()))
+                                .await
+                                .is_err()
+                            {
+                                tracing::error!(
+                                    session_id = %session_id,
+                                    "❌ WebSocket send failed, closing read task"
+                                );
+                                break;
+                            }
+                        }
+                        Err(e) => {
+                            tracing::error!(
+                                session_id = %session_id,
+                                error = %e,
+                                "❌ Failed to read from PTY"
+                            );
+                            break;
+                        }
+                    }
+                }
+                _ = success_rx.recv() => {
+                    tracing::info!(
+                        session_id = %session_id,
+                        "🎉 Success signal received from check task!"
+                    );
+                    // Send success message to frontend
+                    let success_msg = "\r\n\r\n✅ 로그인 성공! Credential이 저장되었습니다.\r\n";
+                    tracing::info!(
+                        session_id = %session_id,
+                        message = success_msg,
+                        "📤 Sending success message to frontend"
+                    );
+                    let send_result = ws_sender.send(axum::extract::ws::Message::Text(success_msg.into())).await;
+                    if send_result.is_ok() {
+                        tracing::info!(
+                            session_id = %session_id,
+                            "✅ Success message sent to frontend successfully"
+                        );
+                    } else {
+                        tracing::error!(
+                            session_id = %session_id,
+                            "❌ Failed to send success message to frontend"
+                        );
+                    }
+                    break;
+                }
+            }
+        }
+        tracing::debug!(
+            session_id = %session_id,
+            "🛑 Read task exiting"
+        );
+    });
+
+    // Spawn task to check for login success
+    let check_task = tokio::spawn(async move {
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(2));
+        let mut check_count = 0;
+        tracing::info!(
+            session_id = %session_id,
+            "🔄 Starting login success check task (polling every 2s)"
+        );
+        loop {
+            interval.tick().await;
+            check_count += 1;
+            tracing::debug!(
+                session_id = %session_id,
+                check_count = check_count,
+                "⏱️  Performing login success check #{}", check_count
+            );
+            match deployment_check
+                .claude_auth_pty()
+                .check_login_success(&session_id, &user_id)
+                .await
+            {
+                Ok(true) => {
+                    tracing::info!(
+                        session_id = %session_id,
+                        check_count = check_count,
+                        "🎊 Login success detected! Sending signal to read task..."
+                    );
+                    let send_result = success_tx.send(()).await;
+                    if send_result.is_ok() {
+                        tracing::info!(
+                            session_id = %session_id,
+                            "✅ Success signal sent to read task successfully"
+                        );
+                    } else {
+                        tracing::error!(
+                            session_id = %session_id,
+                            "❌ Failed to send success signal to read task"
+                        );
+                    }
+                    break;
+                }
+                Ok(false) => {
+                    tracing::trace!(
+                        session_id = %session_id,
+                        check_count = check_count,
+                        "⏭️  No credential found yet, continuing to check..."
+                    );
+                    continue;
+                }
+                Err(e) => {
+                    tracing::error!(
+                        session_id = %session_id,
+                        error = %e,
+                        "❌ Failed to check login success, stopping check task"
+                    );
+                    break;
+                }
+            }
+        }
+        tracing::debug!(
+            session_id = %session_id,
+            "🛑 Check task exiting"
+        );
+    });
+
+    // Read from WebSocket and write to PTY
+    while let Some(msg) = ws_receiver.next().await {
+        match msg {
+            Ok(axum::extract::ws::Message::Binary(data)) => {
+                if let Err(e) = deployment
+                    .claude_auth_pty()
+                    .write_input(&session_id, &data)
+                    .await
+                {
+                    tracing::error!(error = %e, "Failed to write to PTY");
+                    break;
+                }
+            }
+            Ok(axum::extract::ws::Message::Text(data)) => {
+                let data_bytes = data.as_bytes();
+                if let Err(e) = deployment
+                    .claude_auth_pty()
+                    .write_input(&session_id, data_bytes)
+                    .await
+                {
+                    tracing::error!(error = %e, "Failed to write to PTY");
+                    break;
+                }
+            }
+            Ok(axum::extract::ws::Message::Close(_)) => break,
+            Err(e) => {
+                tracing::error!(error = %e, "WebSocket error");
+                break;
+            }
+            _ => {}
+        }
+    }
+
+    // Cleanup
+    let _ = deployment
+        .claude_auth_pty()
+        .cancel_session(&session_id)
+        .await;
+    read_task.abort();
+    check_task.abort();
 }
 
 /// Middleware to set Sentry user context for every request

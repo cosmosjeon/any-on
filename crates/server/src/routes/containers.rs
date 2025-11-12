@@ -1,6 +1,7 @@
 use axum::{
     Router,
     extract::{Query, State},
+    middleware::from_fn_with_state,
     response::Json as ResponseJson,
     routing::get,
 };
@@ -11,7 +12,7 @@ use ts_rs::TS;
 use utils::response::ApiResponse;
 use uuid::Uuid;
 
-use crate::{DeploymentImpl, error::ApiError};
+use crate::{DeploymentImpl, error::ApiError, middleware::auth::require_auth};
 
 #[derive(Debug, Serialize, TS)]
 pub struct ContainerInfo {
@@ -49,6 +50,8 @@ pub async fn get_container_info(
     Ok(ResponseJson(ApiResponse::success(container_info)))
 }
 
-pub fn router(_deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
-    Router::new().route("/containers/info", get(get_container_info))
+pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
+    Router::new()
+        .route("/containers/info", get(get_container_info))
+        .layer(from_fn_with_state(deployment.clone(), require_auth))
 }

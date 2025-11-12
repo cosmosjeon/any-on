@@ -33,7 +33,7 @@ const EXTERNAL_LINKS = [
   {
     label: 'Support',
     icon: MessageCircleQuestion,
-    href: 'https://github.com/BloopAI/anyon/issues',
+    href: 'https://github.com/slit/anyon/issues',
   },
 ];
 

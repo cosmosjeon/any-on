@@ -90,7 +90,7 @@
     "links": [
       {
         "label": "GitHub",
-        "href": "https://github.com/BloopAI/anyon"
+        "href": "https://github.com/slit/anyon"
       }
     ],
     "primary": {
@@ -119,7 +119,7 @@
   },
   "footer": {
     "socials": {
-      "github": "https://github.com/BloopAI/anyon",
+      "github": "https://github.com/slit/anyon",
       "x": "https://x.com/anyon"
     }
   }

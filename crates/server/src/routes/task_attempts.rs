@@ -45,8 +45,9 @@ use uuid::Uuid;
 
 use crate::{
     DeploymentImpl,
+    auth::AuthenticatedUser,
     error::ApiError,
-    middleware::load_task_attempt_middleware,
+    middleware::{auth::require_auth, load_task_attempt_middleware},
     routes::task_attempts::util::{ensure_worktree_path, handle_images_for_prompt},
 };
 
@@ -165,6 +166,7 @@ pub struct RunAgentSetupResponse {}
 #[axum::debug_handler]
 pub async fn create_task_attempt(
     State(deployment): State<DeploymentImpl>,
+    Extension(user): Extension<AuthenticatedUser>,
     Json(payload): Json<CreateTaskAttemptBody>,
 ) -> Result<ResponseJson<ApiResponse<TaskAttempt>>, ApiError> {
     let executor_profile_id = payload.get_executor_profile_id();
@@ -187,6 +189,7 @@ pub async fn create_task_attempt(
         },
         attempt_id,
         payload.task_id,
+        &user.user_id,
     )
     .await?;
 
@@ -1594,7 +1597,8 @@ pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
 
     let task_attempts_router = Router::new()
         .route("/", get(get_task_attempts).post(create_task_attempt))
-        .nest("/{id}", task_attempt_id_router);
+        .nest("/{id}", task_attempt_id_router)
+        .layer(from_fn_with_state(deployment.clone(), require_auth));
 
     Router::new().nest("/task-attempts", task_attempts_router)
 }

@@ -77,6 +77,7 @@
       "github": {
         "title": "GitHub Integration",
         "connected": "Connected as {{username}}",
+        "connectedGeneric": "Connected with GitHub account",
         "connectButton": "Connect GitHub Account",
         "manage": "Manage",
         "disconnect": "Disconnect",
@@ -96,7 +97,7 @@
         "title": "Claude Code Login",
         "description": "Link Claude Code CLI without leaving the browser.",
         "helper": "Anyon streams the Claude CLI prompts, opens the Anthropic approval page automatically, and saves the issued token in SecretStore so you never paste codes manually.",
-        "cloudOnly": "Claude authentication is available only on Anyon Cloud deployments.",
+        "cloudOnly": "Claude authentication is available in both local and cloud deployments.",
         "status": {
           "connected": "Claude credentials are stored securely.",
           "disconnected": "Claude credentials have not been connected yet."
@@ -114,6 +115,7 @@
           "connecting": "Starting session…",
           "disconnecting": "Disconnecting…"
         },
+      "success": "Claude Code credentials saved successfully.",
         "errors": {
           "start": "Could not start the Claude login session. Please try again.",
           "logout": "Failed to delete Claude credentials."

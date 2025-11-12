@@ -1,10 +1,12 @@
-use std::{collections::HashMap, sync::Arc};
-
-use std::path::PathBuf;
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::{Arc, Once},
+};
 
 use async_trait::async_trait;
 use db::DBService;
-use deployment::{Deployment, DeploymentError};
+use deployment::{Deployment, DeploymentError, WorkspaceDirError};
 use executors::profile::ExecutorConfigs;
 use services::services::{
     analytics::{AnalyticsConfig, AnalyticsContext, AnalyticsService, generate_user_id},
@@ -18,6 +20,7 @@ use services::services::{
     file_search_cache::FileSearchCache,
     filesystem::FilesystemService,
     git::GitService,
+    github_user_cache::GitHubUserCache,
     image::ImageService,
     secret_store::{SECRET_GITHUB_OAUTH, SECRET_GITHUB_PAT, SecretStore},
 };
@@ -28,6 +31,8 @@ use uuid::Uuid;
 use crate::container::LocalContainerService;
 mod command;
 pub mod container;
+
+static WORKSPACE_DIR_FALLBACK_LOG: Once = Once::new();
 
 #[derive(Clone)]
 pub struct LocalDeployment {
@@ -47,6 +52,8 @@ pub struct LocalDeployment {
     drafts: DraftsService,
     secret_store: SecretStore,
     claude_auth: ClaudeAuthManager,
+    claude_auth_pty: services::services::claude_auth_pty::ClaudePtyManager,
+    github_user_cache: GitHubUserCache,
 }
 
 #[async_trait]
@@ -116,6 +123,7 @@ impl Deployment for LocalDeployment {
         }
 
         let claude_auth = ClaudeAuthManager::new(secret_store.clone(), user_id.clone());
+        let claude_auth_pty = services::services::claude_auth_pty::ClaudePtyManager::new(Arc::new(secret_store.clone()));
 
         let approvals = Approvals::new(msg_stores.clone());
 
@@ -139,6 +147,7 @@ impl Deployment for LocalDeployment {
         let events = EventService::new(db.clone(), events_msg_store, events_entry_count);
         let drafts = DraftsService::new(db.clone(), image.clone());
         let file_search_cache = Arc::new(FileSearchCache::new());
+        let github_user_cache = GitHubUserCache::new();
 
         Ok(Self {
             config,
@@ -157,6 +166,8 @@ impl Deployment for LocalDeployment {
             drafts,
             secret_store,
             claude_auth,
+            claude_auth_pty,
+            github_user_cache,
         })
     }
 
@@ -226,23 +237,61 @@ impl Deployment for LocalDeployment {
     fn claude_auth(&self) -> &ClaudeAuthManager {
         &self.claude_auth
     }
+
+    fn claude_auth_pty(&self) -> &services::services::claude_auth_pty::ClaudePtyManager {
+        &self.claude_auth_pty
+    }
+
+    fn github_user_cache(&self) -> &GitHubUserCache {
+        &self.github_user_cache
+    }
 }
 
 impl LocalDeployment {
     /// Get workspace directory path
     /// Uses config.workspace_dir if set, otherwise defaults to ~/workspace (or equivalent)
-    pub fn workspace_dir(&self) -> PathBuf {
-        // Use blocking read since this is a sync method
-        let config = self.config.blocking_read();
-        if let Some(workspace_dir_str) = config.workspace_dir.as_ref() {
-            PathBuf::from(workspace_dir_str)
-        } else {
-            // Default to ~/workspace (Replit-style)
-            let home = std::env::var("HOME")
-                .or_else(|_| std::env::var("USERPROFILE"))
-                .unwrap_or_else(|_| ".".to_string());
-            PathBuf::from(home).join("workspace")
+    pub async fn workspace_dir(&self) -> Result<PathBuf, WorkspaceDirError> {
+        if let Some(explicit_dir) = {
+            let config = self.config.read().await;
+            config.workspace_dir.clone()
+        } {
+            return Ok(PathBuf::from(explicit_dir));
         }
+
+        let default_dir = Self::default_workspace_dir()?;
+
+        {
+            let mut config = self.config.write().await;
+            if let Some(existing) = config.workspace_dir.clone() {
+                return Ok(PathBuf::from(existing));
+            }
+            config.workspace_dir = Some(default_dir.to_string_lossy().into_owned());
+        }
+
+        let log_path = format!("{}", default_dir.display());
+        WORKSPACE_DIR_FALLBACK_LOG.call_once(move || {
+            tracing::info!(
+                workspace_dir = %log_path,
+                "Workspace directory not configured; using default path."
+            );
+            tracing::info!(
+                "Set `workspace_dir` in dev_assets/config.json to choose a custom workspace location."
+            );
+        });
+
+        Ok(default_dir)
+    }
+
+    fn default_workspace_dir() -> Result<PathBuf, WorkspaceDirError> {
+        if let Some(home) = std::env::var_os("HOME").filter(|value| !value.is_empty()) {
+            return Ok(PathBuf::from(home).join("workspace"));
+        }
+
+        if let Some(profile) = std::env::var_os("USERPROFILE").filter(|value| !value.is_empty()) {
+            return Ok(PathBuf::from(profile).join("workspace"));
+        }
+
+        Err(WorkspaceDirError::MissingHomeEnvironment)
     }
 
     /// Expose the underlying local container service so other deployments can

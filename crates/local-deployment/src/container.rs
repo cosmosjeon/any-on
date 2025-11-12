@@ -687,7 +687,25 @@ impl ContainerService for LocalContainerService {
             &task_attempt.target_branch,
             true, // create new branch
         )
-        .await?;
+        .await
+        .map_err(|err| {
+            tracing::error!(
+                error = %err,
+                project_id = %project.id,
+                project_path = %project.git_repo_path.display(),
+                task_attempt_id = %task_attempt.id,
+                branch = %task_attempt.branch,
+                worktree = %worktree_path.display(),
+                "Failed to create worktree for task attempt"
+            );
+            let context_message = format!(
+                "Failed to prepare workspace at {} for task attempt {}. \
+If the project directory has moved or been deleted, update the project's repository path and try again.",
+                worktree_path.display(),
+                task_attempt.id
+            );
+            ContainerError::Other(anyhow::Error::new(err).context(context_message))
+        })?;
 
         // Copy files specified in the project's copy_files field
         if let Some(copy_files) = &project.copy_files

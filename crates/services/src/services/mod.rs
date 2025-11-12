@@ -2,6 +2,7 @@ pub mod analytics;
 pub mod approvals;
 pub mod auth;
 pub mod claude_auth;
+pub mod claude_auth_pty;
 #[cfg(feature = "cloud")]
 pub mod cloud_container;
 pub mod config;
@@ -17,6 +18,7 @@ pub mod filesystem_watcher;
 pub mod git;
 pub mod git_cli;
 pub mod github_service;
+pub mod github_user_cache;
 pub mod image;
 pub mod notification;
 pub mod pr_monitor;

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                UPDATE images\n                SET user_id = $1\n                WHERE user_id IS NULL\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "23f172b4bfddb04aadbc62fd3a7b2bb2028975ee126e513c211af5121b6c3e91"
+}

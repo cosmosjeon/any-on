@@ -1,18 +1,20 @@
 use axum::{
-    Router,
+    Extension, Router,
     extract::{
         Query, State,
         ws::{WebSocket, WebSocketUpgrade},
     },
+    middleware::from_fn_with_state,
     response::IntoResponse,
     routing::get,
 };
+use db::models::project::Project;
 use deployment::Deployment;
 use futures_util::{SinkExt, StreamExt, TryStreamExt};
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::DeploymentImpl;
+use crate::{DeploymentImpl, auth::AuthenticatedUser, middleware::auth::require_auth};
 
 #[derive(Debug, Deserialize)]
 pub struct DraftsQuery {
@@ -22,11 +24,28 @@ pub struct DraftsQuery {
 pub async fn stream_project_drafts_ws(
     ws: WebSocketUpgrade,
     State(deployment): State<DeploymentImpl>,
+    Extension(user): Extension<AuthenticatedUser>,
     Query(query): Query<DraftsQuery>,
 ) -> impl IntoResponse {
+    // Validate that the project belongs to the user
+    let project_result =
+        Project::find_by_id_for_user(&deployment.db().pool, query.project_id, &user.user_id).await;
+
     ws.on_upgrade(move |socket| async move {
-        if let Err(e) = handle_project_drafts_ws(socket, deployment, query.project_id).await {
-            tracing::warn!("drafts WS closed: {}", e);
+        // Check project ownership before processing
+        match project_result {
+            Ok(Some(_project)) => {
+                if let Err(e) = handle_project_drafts_ws(socket, deployment, query.project_id).await
+                {
+                    tracing::warn!("drafts WS closed: {}", e);
+                }
+            }
+            Ok(None) => {
+                tracing::warn!("Project {} not found or access denied", query.project_id);
+            }
+            Err(e) => {
+                tracing::error!("Failed to validate project access: {}", e);
+            }
         }
     })
 }
@@ -61,7 +80,9 @@ async fn handle_project_drafts_ws(
     Ok(())
 }
 
-pub fn router(_deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
-    let inner = Router::new().route("/stream/ws", get(stream_project_drafts_ws));
+pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
+    let inner = Router::new()
+        .route("/stream/ws", get(stream_project_drafts_ws))
+        .layer(from_fn_with_state(deployment.clone(), require_auth));
     Router::new().nest("/drafts", inner)
 }

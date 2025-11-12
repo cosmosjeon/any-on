@@ -60,9 +60,17 @@ impl Default for AuthService {
 
 impl AuthService {
     pub fn new() -> Self {
-        let client_id_str = option_env!("GITHUB_CLIENT_ID").unwrap_or("Ov23li9bxz3kKfPOIsGm");
+        // Check build-time environment variable first, then runtime
+        let client_id_str = option_env!("GITHUB_CLIENT_ID")
+            .map(|s| s.to_string())
+            .or_else(|| std::env::var("GITHUB_CLIENT_ID").ok())
+            .expect(
+                "GITHUB_CLIENT_ID environment variable must be set. \
+                Please add it to your .env file or set it as an environment variable.",
+            );
+
         AuthService {
-            client_id: client_id_str.to_string(),
+            client_id: client_id_str,
             device_codes: Arc::new(RwLock::new(None)), // Initially no device codes
         }
     }

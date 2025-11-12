@@ -9,7 +9,7 @@ pub fn asset_dir() -> std::path::PathBuf {
     } else if cfg!(debug_assertions) {
         std::path::PathBuf::from(PROJECT_ROOT).join("../../dev_assets")
     } else {
-        ProjectDirs::from("ai", "bloop", "anyon")
+        ProjectDirs::from("ai", "slit", "anyon")
             .expect("OS didn't give us a home directory")
             .data_dir()
             .to_path_buf()

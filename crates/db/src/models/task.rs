@@ -218,10 +218,63 @@ ORDER BY t.created_at DESC"#,
         sqlx::query_as!(
             Task,
             r#"SELECT id as "id!: Uuid", project_id as "project_id!: Uuid", title, description, status as "status!: TaskStatus", parent_task_attempt as "parent_task_attempt: Uuid", created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>"
-               FROM tasks 
+               FROM tasks
                WHERE id = $1 AND project_id = $2"#,
             id,
             project_id
+        )
+        .fetch_optional(pool)
+        .await
+    }
+
+    /// Find tasks for a specific user (multi-user support)
+    pub async fn find_by_user(pool: &SqlitePool, user_id: &str) -> Result<Vec<Self>, sqlx::Error> {
+        sqlx::query_as!(
+            Task,
+            r#"
+            SELECT
+                id as "id!: Uuid",
+                project_id as "project_id!: Uuid",
+                title,
+                description,
+                status as "status!: TaskStatus",
+                parent_task_attempt as "parent_task_attempt: Uuid",
+                created_at as "created_at!: DateTime<Utc>",
+                updated_at as "updated_at!: DateTime<Utc>"
+            FROM tasks
+            WHERE user_id = $1
+            ORDER BY updated_at DESC
+            "#,
+            user_id
+        )
+        .fetch_all(pool)
+        .await
+    }
+
+    /// Find task by ID with user ownership verification (multi-user support)
+    /// Returns None if task doesn't exist OR doesn't belong to the user
+    pub async fn find_by_id_for_user(
+        pool: &SqlitePool,
+        id: Uuid,
+        user_id: &str,
+    ) -> Result<Option<Self>, sqlx::Error> {
+        sqlx::query_as!(
+            Task,
+            r#"
+            SELECT
+                id as "id!: Uuid",
+                project_id as "project_id!: Uuid",
+                title,
+                description,
+                status as "status!: TaskStatus",
+                parent_task_attempt as "parent_task_attempt: Uuid",
+                created_at as "created_at!: DateTime<Utc>",
+                updated_at as "updated_at!: DateTime<Utc>"
+            FROM tasks
+            WHERE id = $1 AND user_id = $2
+            "#,
+            id,
+            user_id
         )
         .fetch_optional(pool)
         .await
@@ -231,13 +284,15 @@ ORDER BY t.created_at DESC"#,
         pool: &SqlitePool,
         data: &CreateTask,
         task_id: Uuid,
+        user_id: &str, // ✅ Added for multi-user support
     ) -> Result<Self, sqlx::Error> {
         sqlx::query_as!(
             Task,
-            r#"INSERT INTO tasks (id, project_id, title, description, status, parent_task_attempt) 
-               VALUES ($1, $2, $3, $4, $5, $6) 
+            r#"INSERT INTO tasks (id, user_id, project_id, title, description, status, parent_task_attempt)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)
                RETURNING id as "id!: Uuid", project_id as "project_id!: Uuid", title, description, status as "status!: TaskStatus", parent_task_attempt as "parent_task_attempt: Uuid", created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>""#,
             task_id,
+            user_id,  // ✅ Added
             data.project_id,
             data.title,
             data.description,
@@ -380,5 +435,22 @@ ORDER BY t.created_at DESC"#,
             current_attempt: task_attempt.clone(),
             children,
         })
+    }
+
+    /// Claim all orphaned tasks (user_id IS NULL) for the given user
+    /// Returns the number of tasks claimed
+    pub async fn claim_orphaned(pool: &SqlitePool, user_id: &str) -> Result<u64, sqlx::Error> {
+        let result = sqlx::query!(
+            r#"
+                UPDATE tasks
+                SET user_id = $1
+                WHERE user_id IS NULL
+            "#,
+            user_id
+        )
+        .execute(pool)
+        .await?;
+
+        Ok(result.rows_affected())
     }
 }

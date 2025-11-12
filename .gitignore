@@ -16,6 +16,7 @@ yarn-error.log*
 # Environment variables
 .env
 .env.*
+!.env.example
 .env.local
 .env.development.local
 .env.test.local
@@ -29,6 +30,7 @@ yarn-error.log*
 *.swp
 *.swo
 *~
+.claude/.mcp.json
 
 # OS
 .DS_Store
@@ -44,6 +46,11 @@ pids
 *.pid
 *.seed
 *.pid.lock
+
+# Database files
+crates/db/dev_assets_seed/*.db
+crates/db/prepare_db.sqlite
+dev_assets_seed/*.sqlite
 
 # Coverage directory used by tools like istanbul
 coverage/

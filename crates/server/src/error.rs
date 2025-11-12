@@ -13,8 +13,7 @@ use git2::Error as Git2Error;
 use services::services::{
     auth::AuthError, config::ConfigError, container::ContainerError, drafts::DraftsServiceError,
     git::GitServiceError, github_service::GitHubServiceError, image::ImageError,
-    secret_store::SecretStoreError,
-    worktree_manager::WorktreeError,
+    secret_store::SecretStoreError, worktree_manager::WorktreeError,
 };
 use thiserror::Error;
 use utils::response::ApiResponse;

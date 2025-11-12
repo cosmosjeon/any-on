@@ -11,7 +11,12 @@ use serde::Deserialize;
 use ts_rs::TS;
 use utils::response::ApiResponse;
 
-use crate::{DeploymentImpl, error::ApiError, middleware::load_tag_middleware};
+use crate::{
+    DeploymentImpl,
+    auth::AuthenticatedUser,
+    error::ApiError,
+    middleware::{auth::require_auth, load_tag_middleware},
+};
 
 #[derive(Deserialize, TS)]
 pub struct TagSearchParams {
@@ -21,9 +26,10 @@ pub struct TagSearchParams {
 
 pub async fn get_tags(
     State(deployment): State<DeploymentImpl>,
+    Extension(user): Extension<AuthenticatedUser>,
     Query(params): Query<TagSearchParams>,
 ) -> Result<ResponseJson<ApiResponse<Vec<Tag>>>, ApiError> {
-    let mut tags = Tag::find_all(&deployment.db().pool).await?;
+    let mut tags = Tag::find_by_user(&deployment.db().pool, &user.user_id).await?;
 
     // Filter by search query if provided
     if let Some(search_query) = params.search {
@@ -42,9 +48,10 @@ pub async fn get_tag(
 
 pub async fn create_tag(
     State(deployment): State<DeploymentImpl>,
+    Extension(user): Extension<AuthenticatedUser>,
     Json(payload): Json<CreateTag>,
 ) -> Result<ResponseJson<ApiResponse<Tag>>, ApiError> {
-    let tag = Tag::create(&deployment.db().pool, &payload).await?;
+    let tag = Tag::create(&deployment.db().pool, &payload, &user.user_id).await?;
 
     deployment
         .track_if_analytics_allowed(
@@ -61,10 +68,11 @@ pub async fn create_tag(
 
 pub async fn update_tag(
     Extension(tag): Extension<Tag>,
+    Extension(user): Extension<AuthenticatedUser>,
     State(deployment): State<DeploymentImpl>,
     Json(payload): Json<UpdateTag>,
 ) -> Result<ResponseJson<ApiResponse<Tag>>, ApiError> {
-    let updated_tag = Tag::update(&deployment.db().pool, tag.id, &payload).await?;
+    let updated_tag = Tag::update(&deployment.db().pool, tag.id, &payload, &user.user_id).await?;
 
     deployment
         .track_if_analytics_allowed(
@@ -81,9 +89,10 @@ pub async fn update_tag(
 
 pub async fn delete_tag(
     Extension(tag): Extension<Tag>,
+    Extension(user): Extension<AuthenticatedUser>,
     State(deployment): State<DeploymentImpl>,
 ) -> Result<ResponseJson<ApiResponse<()>>, ApiError> {
-    let rows_affected = Tag::delete(&deployment.db().pool, tag.id).await?;
+    let rows_affected = Tag::delete(&deployment.db().pool, tag.id, &user.user_id).await?;
     if rows_affected == 0 {
         Err(ApiError::Database(sqlx::Error::RowNotFound))
     } else {
@@ -98,7 +107,8 @@ pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
 
     let inner = Router::new()
         .route("/", get(get_tags).post(create_tag))
-        .nest("/{tag_id}", tag_router);
+        .nest("/{tag_id}", tag_router)
+        .layer(from_fn_with_state(deployment.clone(), require_auth));
 
     Router::new().nest("/tags", inner)
 }

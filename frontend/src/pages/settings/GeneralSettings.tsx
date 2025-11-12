@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cloneDeep, merge, isEqual } from 'lodash';
 import {
@@ -60,9 +60,11 @@ export function GeneralSettings() {
     profiles,
     githubSecretState,
     claudeSecretState,
-    isCloud,
+    isCloud: _isCloud, // Unused but kept for future use
     reloadSystem,
   } = useUserSystem();
+
+  void _isCloud;
 
   // Draft state management
   const [draft, setDraft] = useState(() => (config ? cloneDeep(config) : null));
@@ -78,6 +80,8 @@ export function GeneralSettings() {
   const [claudeActionType, setClaudeActionType] = useState<
     'connect' | 'disconnect' | null
   >(null);
+  const [claudeLoginSuccess, setClaudeLoginSuccess] = useState(false);
+  const claudeSuccessTimeoutRef = useRef<number | null>(null);
 
   const validateBranchPrefix = useCallback(
     (prefix: string): string | null => {
@@ -145,6 +149,14 @@ export function GeneralSettings() {
     return () => window.removeEventListener('beforeunload', handler);
   }, [hasUnsavedChanges]);
 
+  useEffect(() => {
+    return () => {
+      if (claudeSuccessTimeoutRef.current) {
+        window.clearTimeout(claudeSuccessTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const playSound = async (soundFile: SoundFile) => {
     const audio = new Audio(`/api/sounds/${soundFile}`);
     try {
@@ -191,14 +203,15 @@ export function GeneralSettings() {
     updateAndSaveConfig({ onboarding_acknowledged: false });
   };
 
-  const githubFeatureEnabled = isCloud;
+  // GitHub Device Flow is available in both local and cloud deployments.
+  const githubFeatureEnabled = true;
   const githubConnected = !!(
     githubFeatureEnabled &&
-    config?.github?.username &&
     githubSecretState?.has_oauth_token
   );
   const patConfigured = !!githubSecretState?.has_pat;
-  const claudeFeatureEnabled = isCloud;
+  // Claude Code authentication is available in both local and cloud deployments.
+  const claudeFeatureEnabled = true;
   const claudeConnected = !!(
     claudeFeatureEnabled && claudeSecretState?.has_credentials
   );
@@ -227,18 +240,34 @@ export function GeneralSettings() {
 
   const handleClaudeLogin = useCallback(async () => {
     if (!claudeFeatureEnabled) return;
+    console.log('🚀 [GeneralSettings] Starting Claude login flow');
     setClaudeActionType('connect');
     setClaudeActionLoading(true);
     setError(null);
     try {
+      console.log('📺 [GeneralSettings] Showing claude-login modal');
       const result = await NiceModal.show('claude-login');
+      console.log('📺 [GeneralSettings] Modal closed with result:', result);
       if (result) {
+        console.log('🔄 [GeneralSettings] Login successful, reloading system config');
         await reloadSystem();
+        console.log('✅ [GeneralSettings] System config reloaded, showing success state');
+        setClaudeLoginSuccess(true);
+        if (claudeSuccessTimeoutRef.current) {
+          window.clearTimeout(claudeSuccessTimeoutRef.current);
+        }
+        claudeSuccessTimeoutRef.current = window.setTimeout(() => {
+          console.log('⏱️  [GeneralSettings] Clearing success state after 4s');
+          setClaudeLoginSuccess(false);
+        }, 4000);
+      } else {
+        console.log('❌ [GeneralSettings] Modal returned falsy result');
       }
     } catch (err) {
-      console.error('Failed to start Claude login', err);
+      console.error('❌ [GeneralSettings] Failed to start Claude login', err);
       setError(t('settings.general.claude.errors.start'));
     } finally {
+      console.log('🏁 [GeneralSettings] Login flow finished');
       setClaudeActionLoading(false);
       setClaudeActionType(null);
     }
@@ -284,6 +313,14 @@ export function GeneralSettings() {
       {error && (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {claudeLoginSuccess && (
+        <Alert className="border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200">
+          <AlertDescription className="font-medium">
+            {t('settings.general.claude.success')}
+          </AlertDescription>
         </Alert>
       )}
 
@@ -513,11 +550,13 @@ export function GeneralSettings() {
                   <div className="flex items-center justify-between p-4 border rounded-lg">
                     <div>
                       <p className="font-medium">
-                        {t('settings.general.github.connected', {
-                          username: config.github.username,
-                        })}
+                        {config?.github?.username
+                          ? t('settings.general.github.connected', {
+                              username: config.github.username,
+                            })
+                          : t('settings.general.github.connectedGeneric')}
                       </p>
-                      {config.github.primary_email && (
+                      {config?.github?.primary_email && (
                         <p className="text-sm text-muted-foreground">
                           {config.github.primary_email}
                         </p>
