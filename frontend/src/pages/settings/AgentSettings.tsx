@@ -403,10 +403,10 @@ export function AgentSettings() {
           localParsedProfiles &&
           localParsedProfiles.executors ? (
             // Form-based editor
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="executor-type">
+                  <Label htmlFor="executor-type" className="text-sm font-semibold">
                     {t('settings.agents.editor.agentLabel')}
                   </Label>
                   <Select
@@ -417,7 +417,7 @@ export function AgentSettings() {
                       setSelectedConfiguration('DEFAULT');
                     }}
                   >
-                    <SelectTrigger id="executor-type">
+                    <SelectTrigger id="executor-type" className="h-10">
                       <SelectValue
                         placeholder={t(
                           'settings.agents.editor.agentPlaceholder'
@@ -437,7 +437,7 @@ export function AgentSettings() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="configuration">
+                  <Label htmlFor="configuration" className="text-sm font-semibold">
                     {t('settings.agents.editor.configLabel')}
                   </Label>
                   <div className="flex gap-2">
@@ -454,7 +454,7 @@ export function AgentSettings() {
                         !localParsedProfiles.executors[selectedExecutorType]
                       }
                     >
-                      <SelectTrigger id="configuration">
+                      <SelectTrigger id="configuration" className="h-10 flex-1">
                         <SelectValue
                           placeholder={t(
                             'settings.agents.editor.configPlaceholder'
@@ -478,7 +478,7 @@ export function AgentSettings() {
                     <Button
                       variant="destructive"
                       size="sm"
-                      className="h-10"
+                      className="h-10 px-3"
                       onClick={() => openDeleteDialog(selectedConfiguration)}
                       disabled={
                         profilesSaving ||
@@ -508,25 +508,27 @@ export function AgentSettings() {
               {localParsedProfiles.executors[selectedExecutorType]?.[
                 selectedConfiguration
               ]?.[selectedExecutorType] && (
-                <ExecutorConfigForm
-                  executor={selectedExecutorType as any}
-                  value={
-                    localParsedProfiles.executors[selectedExecutorType][
-                      selectedConfiguration
-                    ][selectedExecutorType] || {}
-                  }
-                  onChange={(formData) =>
-                    handleExecutorConfigChange(
-                      selectedExecutorType,
-                      selectedConfiguration,
-                      formData
-                    )
-                  }
-                  onSave={handleExecutorConfigSave}
-                  disabled={profilesSaving}
-                  isSaving={profilesSaving}
-                  isDirty={isDirty}
-                />
+                <div className="pt-6">
+                  <ExecutorConfigForm
+                    executor={selectedExecutorType as any}
+                    value={
+                      localParsedProfiles.executors[selectedExecutorType][
+                        selectedConfiguration
+                      ][selectedExecutorType] || {}
+                    }
+                    onChange={(formData) =>
+                      handleExecutorConfigChange(
+                        selectedExecutorType,
+                        selectedConfiguration,
+                        formData
+                      )
+                    }
+                    onSave={handleExecutorConfigSave}
+                    disabled={profilesSaving}
+                    isSaving={profilesSaving}
+                    isDirty={isDirty}
+                  />
+                </div>
               )}
             </div>
           ) : (

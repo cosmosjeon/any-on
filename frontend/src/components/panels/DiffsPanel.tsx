@@ -227,7 +227,6 @@ function DiffsPanelContent({
                 diff={diff}
                 expanded={!collapsedIds.has(id)}
                 onToggle={() => toggle(id)}
-                selectedAttempt={selectedAttempt}
               />
             );
           })

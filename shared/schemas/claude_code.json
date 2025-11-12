@@ -12,30 +12,40 @@
       "default": null
     },
     "claude_code_router": {
+      "title": "Claude Code Router",
+      "description": "Enable Claude Code Router",
       "type": [
         "boolean",
         "null"
       ]
     },
     "plan": {
+      "title": "Plan",
+      "description": "Enable plan mode",
       "type": [
         "boolean",
         "null"
       ]
     },
     "approvals": {
+      "title": "Approvals",
+      "description": "Enable approval mode",
       "type": [
         "boolean",
         "null"
       ]
     },
     "model": {
+      "title": "Model",
+      "description": "Model to use",
       "type": [
         "string",
         "null"
       ]
     },
     "dangerously_skip_permissions": {
+      "title": "Dangerously Skip Permissions",
+      "description": "Skip permission checks (dangerous)",
       "type": [
         "boolean",
         "null"

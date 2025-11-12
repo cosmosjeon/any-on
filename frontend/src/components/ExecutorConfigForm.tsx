@@ -4,7 +4,6 @@ import { RJSFValidationError } from '@rjsf/utils';
 import validator from '@rjsf/validator-ajv8';
 
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { shadcnTheme } from './rjsf';
@@ -20,12 +19,18 @@ type ExecutorType =
   | 'OPENCODE'
   | 'QWEN_CODE';
 
+// ExecutorConfig represents the configuration data for an executor
+// It's a flexible object that conforms to the executor's JSON schema
+// Using 'any' here because RJSF library requires it for form data
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ExecutorConfig = any;
+
 interface ExecutorConfigFormProps {
   executor: ExecutorType;
-  value: any;
-  onSubmit?: (formData: any) => void;
-  onChange?: (formData: any) => void;
-  onSave?: (formData: any) => Promise<void>;
+  value: ExecutorConfig;
+  onSubmit?: (formData: ExecutorConfig) => void;
+  onChange?: (formData: ExecutorConfig) => void;
+  onSave?: (formData: ExecutorConfig) => Promise<void>;
   disabled?: boolean;
   isSaving?: boolean;
   isDirty?: boolean;
@@ -57,6 +62,7 @@ export function ExecutorConfigForm({
     setValidationErrors([]);
   }, [value, executor]);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleChange = ({ formData: newFormData }: any) => {
     setFormData(newFormData);
     if (onChange) {
@@ -64,6 +70,7 @@ export function ExecutorConfigForm({
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleSubmit = async ({ formData: submitData }: any) => {
     setValidationErrors([]);
     if (onSave) {
@@ -88,9 +95,9 @@ export function ExecutorConfigForm({
   }
 
   return (
-    <div className="space-y-8">
-      <Card>
-        <CardContent className="p-0">
+    <div className="space-y-6">
+      <div className="rounded-lg border bg-card shadow-sm">
+        <div className="p-6">
           <Form
             schema={schema}
             formData={formData}
@@ -104,22 +111,25 @@ export function ExecutorConfigForm({
             widgets={shadcnTheme.widgets}
             templates={shadcnTheme.templates}
           >
-            {onSave && (
-              <div className="flex justify-end pt-4">
-                <Button
-                  type="submit"
-                  disabled={!isDirty || validationErrors.length > 0 || isSaving}
-                >
-                  {isSaving && (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  )}
-                  Save Configuration
-                </Button>
-              </div>
-            )}
+            <div className="hidden">
+              <button type="submit" />
+            </div>
           </Form>
-        </CardContent>
-      </Card>
+        </div>
+        {onSave && (
+          <div className="flex justify-end px-6 py-4 border-t bg-muted/30">
+            <Button
+              onClick={() => handleSubmit({ formData } as any)}
+              disabled={!isDirty || validationErrors.length > 0 || isSaving}
+            >
+              {isSaving && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Save Configuration
+            </Button>
+          </div>
+        )}
+      </div>
 
       {validationErrors.length > 0 && (
         <Alert variant="destructive">

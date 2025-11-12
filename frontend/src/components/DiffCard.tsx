@@ -19,8 +19,7 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import '@/styles/diff-style-overrides.css';
-import type { TaskAttempt } from 'shared/types';
-import { useReview, type ReviewDraft } from '@/contexts/ReviewProvider';
+import { useReview, type ReviewDraft, type ReviewComment } from '@/contexts/ReviewProvider';
 import { CommentWidgetLine } from '@/components/diff/CommentWidgetLine';
 import { ReviewCommentRenderer } from '@/components/diff/ReviewCommentRenderer';
 import {
@@ -33,7 +32,6 @@ type Props = {
   diff: Diff;
   expanded: boolean;
   onToggle: () => void;
-  selectedAttempt: TaskAttempt | null;
 };
 
 function labelAndIcon(diff: Diff) {
@@ -71,7 +69,6 @@ export default function DiffCard({
   diff,
   expanded,
   onToggle,
-  selectedAttempt: _selectedAttempt,
 }: Props) {
   const { config } = useUserSystem();
   const theme = getActualTheme(config?.theme);
@@ -147,9 +144,8 @@ export default function DiffCard({
 
   // Transform comments to git-diff-view extendData format
   const extendData = useMemo(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const oldFileData: Record<string, { data: any }> = {};
-    const newFileData: Record<string, { data: any }> = {};
+    const oldFileData: Record<string, { data: ReviewComment }> = {};
+    const newFileData: Record<string, { data: ReviewComment }> = {};
 
     commentsForFile.forEach((comment) => {
       const lineKey = String(comment.lineNumber);
@@ -179,7 +175,7 @@ export default function DiffCard({
     setDraft(widgetKey, draft);
   };
 
-  const renderWidgetLine = (props: any) => {
+  const renderWidgetLine = (props: { side: SplitSide; lineNumber: number; onClose: () => void }) => {
     const widgetKey = `${filePath}-${props.side}-${props.lineNumber}`;
     const draft = drafts[widgetKey];
     if (!draft) return null;
@@ -195,7 +191,7 @@ export default function DiffCard({
     );
   };
 
-  const renderExtendLine = (lineData: any) => {
+  const renderExtendLine = (lineData: { data: ReviewComment }) => {
     return (
       <ReviewCommentRenderer comment={lineData.data} projectId={projectId} />
     );

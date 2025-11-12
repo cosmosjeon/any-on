@@ -8,16 +8,14 @@ export const CheckboxWidget = (props: WidgetProps) => {
     onChange(checked);
   };
 
-  const checked = Boolean(value);
+  const checked = value === true || value === 'true';
 
   return (
-    <div className="flex items-center space-x-2">
-      <Checkbox
-        id={id}
-        checked={checked}
-        onCheckedChange={handleChange}
-        disabled={disabled || readonly}
-      />
-    </div>
+    <Checkbox
+      id={id}
+      checked={checked}
+      onCheckedChange={handleChange}
+      disabled={disabled || readonly}
+    />
   );
 };
