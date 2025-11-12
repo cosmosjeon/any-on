@@ -13,6 +13,7 @@ use super::{project::Project, task_attempt::TaskAttempt};
 #[strum(serialize_all = "kebab_case")]
 pub enum TaskStatus {
     Todo,
+    Plan,
     InProgress,
     InReview,
     Done,
