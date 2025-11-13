@@ -41,7 +41,7 @@ import { useTheme } from '@/components/theme-provider';
 import { useUserSystem } from '@/components/config-provider';
 import { TagManager } from '@/components/TagManager';
 import NiceModal from '@ebay/nice-modal-react';
-import { claudeAuthApi } from '@/lib/api';
+import { claudeAuthApi, githubAuthApi } from '@/lib/api';
 
 export function GeneralSettings() {
   const { t } = useTranslation(['settings', 'common']);
@@ -582,9 +582,27 @@ export function GeneralSettings() {
                   <p className="text-sm text-muted-foreground">
                     {t('settings.general.github.helper')}
                   </p>
-                  <Button onClick={() => NiceModal.show('github-login')}>
-                    {t('settings.general.github.connectButton')}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button onClick={() => NiceModal.show('github-login')}>
+                      {t('settings.general.github.connectButton')}
+                    </Button>
+                    {import.meta.env.DEV && (
+                      <Button
+                        variant="secondary"
+                        onClick={async () => {
+                          try {
+                            await githubAuthApi.devLogin();
+                            await reloadSystem();
+                          } catch (err) {
+                            console.error('Dev login failed:', err);
+                            setError('Dev login failed');
+                          }
+                        }}
+                      >
+                        🔧 Dev Login
+                      </Button>
+                    )}
+                  </div>
                 </div>
               )}
 

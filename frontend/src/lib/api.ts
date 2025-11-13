@@ -700,6 +700,13 @@ export const githubAuthApi = {
     });
     return handleApiResponse<DevicePollStatus>(response);
   },
+  // Dev login (development mode only)
+  devLogin: async (): Promise<DevicePollStatus> => {
+    const response = await makeRequest('/api/auth/dev-login', {
+      method: 'POST',
+    });
+    return handleApiResponse<DevicePollStatus>(response);
+  },
 };
 
 export const claudeAuthApi = {

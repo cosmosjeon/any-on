@@ -31,8 +31,134 @@ use uuid::Uuid;
 
 use crate::{DeploymentImpl, error::ApiError};
 
+#[cfg(not(feature = "cloud"))]
+pub const DEV_LOGIN_PLACEHOLDER_TOKEN: &str = "dev-login-placeholder-token";
+
+/// POST /auth/dev-login (local builds only)
+/// Logs in with a development user without GitHub OAuth
+#[cfg(not(feature = "cloud"))]
+async fn dev_login(
+    State(deployment): State<DeploymentImpl>,
+) -> Result<ResponseJson<ApiResponse<DevicePollStatus>>, ApiError> {
+    tracing::warn!("🔧 DEV MODE: Logging in with development user");
+
+    // Use the current deployment's user_id (hardware-based) instead of a fixed "dev_user"
+    let user_id = deployment.user_id();
+
+    // Save to config (same as device_poll)
+    {
+        let config_path = utils::assets::config_path();
+        let mut config = deployment.config().write().await;
+        config.github.username = Some("Dev User".to_string());
+        config.github.primary_email = Some("dev@localhost".to_string());
+        config.github.oauth_token = None;
+        config.github_login_acknowledged = true;
+        save_config_to_file(&config.clone(), &config_path).await?;
+    }
+
+    // Mark GitHub as connected by storing a placeholder OAuth secret
+    deployment
+        .secret_store()
+        .put_secret(
+            deployment.user_id(),
+            SECRET_GITHUB_OAUTH,
+            DEV_LOGIN_PLACEHOLDER_TOKEN.as_bytes(),
+        )
+        .await?;
+
+    // Claim orphaned data for dev user
+    {
+        tracing::info!("Claiming orphaned data for dev user: {}", user_id);
+
+        // Claim projects
+        match Project::claim_orphaned(&deployment.db().pool, user_id).await {
+            Ok(count) if count > 0 => {
+                tracing::info!("Claimed {} orphaned projects", count);
+            }
+            Ok(_) => {
+                tracing::debug!("No orphaned projects to claim");
+            }
+            Err(e) => {
+                tracing::error!("Failed to claim orphaned projects: {}", e);
+            }
+        }
+
+        // Claim tasks
+        match Task::claim_orphaned(&deployment.db().pool, user_id).await {
+            Ok(count) if count > 0 => {
+                tracing::info!("Claimed {} orphaned tasks", count);
+            }
+            Ok(_) => {
+                tracing::debug!("No orphaned tasks to claim");
+            }
+            Err(e) => {
+                tracing::error!("Failed to claim orphaned tasks: {}", e);
+            }
+        }
+
+        // Claim task attempts
+        match TaskAttempt::claim_orphaned(&deployment.db().pool, user_id).await {
+            Ok(count) if count > 0 => {
+                tracing::info!("Claimed {} orphaned task attempts", count);
+            }
+            Ok(_) => {
+                tracing::debug!("No orphaned task attempts to claim");
+            }
+            Err(e) => {
+                tracing::error!("Failed to claim orphaned task attempts: {}", e);
+            }
+        }
+
+        // Claim tags
+        match Tag::claim_orphaned(&deployment.db().pool, user_id).await {
+            Ok(count) if count > 0 => {
+                tracing::info!("Claimed {} orphaned tags", count);
+            }
+            Ok(_) => {
+                tracing::debug!("No orphaned tags to claim");
+            }
+            Err(e) => {
+                tracing::error!("Failed to claim orphaned tags: {}", e);
+            }
+        }
+
+        // Claim images
+        match Image::claim_orphaned(&deployment.db().pool, user_id).await {
+            Ok(count) if count > 0 => {
+                tracing::info!("Claimed {} orphaned images", count);
+            }
+            Ok(_) => {
+                tracing::debug!("No orphaned images to claim");
+            }
+            Err(e) => {
+                tracing::error!("Failed to claim orphaned images: {}", e);
+            }
+        }
+
+        // Claim drafts
+        match Draft::claim_orphaned(&deployment.db().pool, user_id).await {
+            Ok(count) if count > 0 => {
+                tracing::info!("Claimed {} orphaned drafts", count);
+            }
+            Ok(_) => {
+                tracing::debug!("No orphaned drafts to claim");
+            }
+            Err(e) => {
+                tracing::error!("Failed to claim orphaned drafts: {}", e);
+            }
+        }
+    }
+
+    let _ = deployment.update_sentry_scope().await;
+
+    tracing::info!("✅ DEV MODE: Login successful");
+    Ok(ResponseJson(ApiResponse::success(
+        DevicePollStatus::Success,
+    )))
+}
+
 pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
-    Router::new()
+    let mut router = Router::new()
         .route("/auth/github/device/start", post(device_start))
         .route("/auth/github/device/poll", post(device_poll))
         .route("/auth/github/check", get(github_check_token))
@@ -58,7 +184,15 @@ pub fn router(deployment: &DeploymentImpl) -> Router<DeploymentImpl> {
         .layer(from_fn_with_state(
             deployment.clone(),
             sentry_user_context_middleware,
-        ))
+        ));
+
+    // Add dev login endpoint only for local (non-cloud) builds
+    #[cfg(not(feature = "cloud"))]
+    {
+        router = router.route("/auth/dev-login", post(dev_login));
+    }
+
+    router
 }
 
 /// POST /auth/github/device/start

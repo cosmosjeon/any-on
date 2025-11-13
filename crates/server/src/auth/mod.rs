@@ -30,4 +30,15 @@ impl AuthenticatedUser {
             avatar_url,
         }
     }
+
+    /// Create a development-mode user (no GitHub account)
+    #[cfg(not(feature = "cloud"))]
+    pub fn from_dev_user(user_id: String, username: String) -> Self {
+        Self {
+            user_id,
+            github_id: 0,
+            username,
+            avatar_url: None,
+        }
+    }
 }

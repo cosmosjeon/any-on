@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
+import { EpicCard } from './EpicCard';
 import {
   type DragEndEvent,
   KanbanBoard,
@@ -50,7 +51,7 @@ function TaskKanbanBoard({
 }: TaskKanbanBoardProps) {
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  const { columns, data } = useMemo(() => {
+  const { columns, data, epicStoriesMap } = useMemo(() => {
     // Define column order with Plan inserted after Backlog
     const columnOrder: ExtendedStatus[] = ['todo', 'plan', 'inprogress', 'inreview', 'done', 'cancelled'];
 
@@ -60,17 +61,52 @@ function TaskKanbanBoard({
       color: extendedStatusColors[status] || 'hsl(var(--muted-foreground))',
     }));
 
-    const data: KanbanTaskItem[] = Object.entries(groupedTasks).flatMap(
-      ([status, tasks]) =>
-        tasks.map((task) => ({
-          id: task.id,
-          name: task.title,
-          column: status,
-          task,
-        }))
+    // Separate backlog tasks into Epics and Stories based on title prefix
+    const backlogTasks = groupedTasks['todo'] || [];
+    const epics = backlogTasks.filter(task => task.title.toLowerCase().startsWith('epic:'));
+    const stories = backlogTasks.filter(task => task.title.toLowerCase().startsWith('story:'));
+    const otherTasks = backlogTasks.filter(task => 
+      !task.title.toLowerCase().startsWith('epic:') && 
+      !task.title.toLowerCase().startsWith('story:')
     );
 
-    return { columns, data };
+    // Map stories to their parent task attempt (for Epic-Story relationship)
+    const epicStoriesMap = new Map<string, Task[]>();
+    
+    // For prototype, show all stories under each epic
+    epics.forEach(epic => {
+      epicStoriesMap.set(epic.id, stories);
+    });
+
+    // Create data array - for backlog, include Epics and other tasks (not Stories)
+    const data: KanbanTaskItem[] = [
+      // Backlog: Epics and other tasks (Stories will be shown inside Epic cards)
+      ...epics.map(task => ({
+        id: task.id,
+        name: task.title,
+        column: 'todo',
+        task,
+      })),
+      ...otherTasks.map(task => ({
+        id: task.id,
+        name: task.title,
+        column: 'todo',
+        task,
+      })),
+      // Other columns: all tasks
+      ...Object.entries(groupedTasks)
+        .filter(([status]) => status !== 'todo')
+        .flatMap(([status, tasks]) =>
+          tasks.map((task) => ({
+            id: task.id,
+            name: task.title,
+            column: status,
+            task,
+          }))
+        ),
+    ];
+
+    return { columns, data, epicStoriesMap };
   }, [groupedTasks]);
 
   const handleDataChange = () => {
@@ -135,6 +171,10 @@ function TaskKanbanBoard({
             {(item) => {
               const taskItem = item as KanbanTaskItem;
               const isSelected = selectedTask?.id === taskItem.id;
+              const isBacklog = column.id === 'todo';
+              const isEpic = taskItem.task.title.toLowerCase().startsWith('epic:');
+              const stories = isBacklog && isEpic ? (epicStoriesMap.get(taskItem.id) || []) : [];
+
               return (
                 <div
                   key={taskItem.id}
@@ -142,21 +182,30 @@ function TaskKanbanBoard({
                     cardRefs.current[taskItem.id] = el;
                   }}
                 >
-                  <KanbanCard
-                    id={taskItem.id}
-                    name={taskItem.name}
-                    column={taskItem.column}
-                    className={cn(
-                      'border-border/40 bg-card hover:border-border hover:shadow-lg transition-all duration-200',
-                      isSelected && 'ring-1 ring-primary'
-                    )}
-                  >
-                    <TaskCard
-                      task={taskItem.task}
+                  {isBacklog && isEpic ? (
+                    <EpicCard
+                      epic={taskItem.task}
+                      stories={stories}
                       projectId={projectId}
                       onViewDetails={handleCardClick}
                     />
-                  </KanbanCard>
+                  ) : (
+                    <KanbanCard
+                      id={taskItem.id}
+                      name={taskItem.name}
+                      column={taskItem.column}
+                      className={cn(
+                        'border-border/40 bg-card hover:border-border hover:shadow-lg transition-all duration-200',
+                        isSelected && 'ring-1 ring-primary'
+                      )}
+                    >
+                      <TaskCard
+                        task={taskItem.task}
+                        projectId={projectId}
+                        onViewDetails={handleCardClick}
+                      />
+                    </KanbanCard>
+                  )}
                 </div>
               );
             }}

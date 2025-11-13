@@ -16,6 +16,8 @@ use services::services::{
     secret_store::SECRET_GITHUB_OAUTH,
 };
 
+#[cfg(not(feature = "cloud"))]
+use crate::routes::auth::DEV_LOGIN_PLACEHOLDER_TOKEN;
 use crate::{DeploymentImpl, auth::AuthenticatedUser};
 
 /// Middleware that requires GitHub authentication
@@ -51,6 +53,24 @@ pub async fn require_auth(
             tracing::debug!("No GitHub token found for user");
             StatusCode::UNAUTHORIZED
         })?;
+
+    #[cfg(not(feature = "cloud"))]
+    if token == DEV_LOGIN_PLACEHOLDER_TOKEN {
+        // Dev login shortcut – skip GitHub validation and use local user_id
+        let username = deployment
+            .config()
+            .read()
+            .await
+            .github
+            .username
+            .clone()
+            .unwrap_or_else(|| "Dev User".to_string());
+
+        let dev_user = AuthenticatedUser::from_dev_user(deployment.user_id().to_string(), username);
+
+        req.extensions_mut().insert(dev_user);
+        return Ok(next.run(req).await);
+    }
 
     // Step 2: Create GitHub service client
     let gh = GitHubService::new(&token).map_err(|err| {

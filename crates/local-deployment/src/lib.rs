@@ -123,7 +123,9 @@ impl Deployment for LocalDeployment {
         }
 
         let claude_auth = ClaudeAuthManager::new(secret_store.clone(), user_id.clone());
-        let claude_auth_pty = services::services::claude_auth_pty::ClaudePtyManager::new(Arc::new(secret_store.clone()));
+        let claude_auth_pty = services::services::claude_auth_pty::ClaudePtyManager::new(Arc::new(
+            secret_store.clone(),
+        ));
 
         let approvals = Approvals::new(msg_stores.clone());
 

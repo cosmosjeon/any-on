@@ -7,6 +7,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarSeparator,
 } from '@/components/ui/sidebar';
 import { useSidebar } from '@/components/ui/sidebar';
 import {
@@ -15,11 +16,24 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { PanelLeftOpen, PanelLeftClose, FileText, Palette, KanbanSquare, FolderOpen, Settings } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  PanelLeftOpen,
+  PanelLeftClose,
+  FileText,
+  Palette,
+  KanbanSquare,
+  FolderOpen,
+  Settings,
+  Plus,
+  BookOpen,
+  MessageCircleQuestion
+} from 'lucide-react';
 import AnyonLogo from '@/../../assets/logo/anyon.svg';
 import AnyonLetterLogo from '@/../../assets/logo/ANYON-letter.svg';
 import { Link, useLocation } from 'react-router-dom';
 import { useProject } from '@/contexts/project-context';
+import { openTaskForm } from '@/lib/openTaskForm';
 
 export function AppSidebar() {
   const { state, toggleSidebar } = useSidebar();
@@ -109,7 +123,7 @@ export function AppSidebar() {
                 </SidebarMenuItem>
               </>
             ) : (
-              // No project context: Show Projects, Settings
+              // No project context: Show Projects
               <>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild tooltip="Projects" isActive={location.pathname === '/projects' || location.pathname === '/'}>
@@ -119,28 +133,67 @@ export function AppSidebar() {
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild tooltip="Settings" isActive={location.pathname.startsWith('/settings')}>
-                    <Link to="/settings">
-                      <Settings className="w-5 h-5" />
-                      <span>Settings</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
               </>
             )}
+          </SidebarMenu>
+        </SidebarGroup>
+
+        {/* Settings and External Links */}
+        <SidebarGroup>
+          <SidebarSeparator />
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild tooltip="Settings" isActive={location.pathname.startsWith('/settings')}>
+                <Link to={projectId ? `/settings/projects?projectId=${projectId}` : '/settings/general'}>
+                  <Settings className="w-5 h-5" />
+                  <span>Settings</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild tooltip="Documentation">
+                <a href="https://anyon.com/docs" target="_blank" rel="noopener noreferrer">
+                  <BookOpen className="w-5 h-5" />
+                  <span>Docs</span>
+                </a>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild tooltip="Support">
+                <a href="https://github.com/slit/anyon/issues" target="_blank" rel="noopener noreferrer">
+                  <MessageCircleQuestion className="w-5 h-5" />
+                  <span>Support</span>
+                </a>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
 
       <SidebarFooter className="border-t">
-        <div className="p-2">
-          {!isCollapsed && (
-            <p className="text-xs text-muted-foreground">
-              Sidebar ready for content
-            </p>
-          )}
-        </div>
+        {projectId && (
+          <div className="p-2">
+            <TooltipProvider delayDuration={0}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={() => openTaskForm({ projectId })}
+                    className="w-full"
+                    size={isCollapsed ? 'icon' : 'default'}
+                  >
+                    <Plus className="h-4 w-4" />
+                    {!isCollapsed && <span className="ml-2">Create Task</span>}
+                  </Button>
+                </TooltipTrigger>
+                {isCollapsed && (
+                  <TooltipContent side="right">
+                    <p>Create new task</p>
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        )}
       </SidebarFooter>
     </Sidebar>
   );

@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import NiceModal from '@ebay/nice-modal-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -129,6 +130,8 @@ export function ProjectTasks() {
     error: projectError,
   } = useProject();
 
+  const openedModalRef = useRef<string | null>(null);
+
   useEffect(() => {
     enableScope(Scope.KANBAN);
 
@@ -156,7 +159,8 @@ export function ProjectTasks() {
     [taskId, tasksById]
   );
 
-  const isPanelOpen = Boolean(taskId && selectedTask);
+  // Always keep panel closed - use modal instead
+  const isPanelOpen = false;
 
   const { isOpen: showTaskPanelShowcase, close: closeTaskPanelShowcase } =
     useShowcaseTrigger(showcases.taskPanel, {
@@ -468,17 +472,31 @@ export function ProjectTasks() {
   }, [projectId, navigate]);
 
   const handleViewTaskDetails = useCallback(
-    (task: Task, attemptIdToShow?: string) => {
-      if (attemptIdToShow) {
-        navigateWithSearch(paths.attempt(projectId!, task.id, attemptIdToShow));
-      } else {
-        navigateWithSearch(
-          `${paths.task(projectId!, task.id)}/attempts/latest`
-        );
-      }
+    (task: Task) => {
+      if (!projectId) return;
+      NiceModal.show('task-detail', { task, projectId });
     },
-    [projectId, navigateWithSearch]
+    [projectId]
   );
+
+  // Auto-open modal when URL has taskId
+  useEffect(() => {
+    if (taskId && selectedTask && projectId) {
+      // Prevent opening the same modal multiple times
+      if (openedModalRef.current !== taskId) {
+        openedModalRef.current = taskId;
+        NiceModal.show('task-detail', { task: selectedTask, projectId }).then(() => {
+          // When modal closes, remove taskId from URL
+          openedModalRef.current = null;
+          if (projectId) {
+            navigate(`/projects/${projectId}/tasks`, { replace: true });
+          }
+        });
+      }
+    } else {
+      openedModalRef.current = null;
+    }
+  }, [taskId, selectedTask, projectId, navigate]);
 
   const selectNextTask = useCallback(() => {
     if (selectedTask) {
@@ -797,6 +815,18 @@ export function ProjectTasks() {
 
   return (
     <div className="min-h-full h-full flex flex-col">
+      {/* Page Header */}
+      <div className="border-b bg-background shrink-0">
+        <div className="flex items-center justify-between px-6 py-4">
+          <div>
+            <h1 className="text-2xl font-semibold">태스크 보드</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              프로젝트의 모든 태스크를 칸반 보드로 시각화하고 관리합니다.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {streamError && (
         <Alert className="w-full z-30 xl:sticky xl:top-0">
           <AlertTitle className="flex items-center gap-2">

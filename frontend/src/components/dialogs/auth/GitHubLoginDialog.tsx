@@ -33,12 +33,39 @@ const GitHubLoginDialog = NiceModal.create(() => {
   const [polling, setPolling] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // Dev login doesn't require OAuth token or PAT
+  // Just having a username is enough for authentication
   const isAuthenticated =
-    !!(
-      config?.github?.username &&
-      githubSecretState?.has_oauth_token &&
-      !githubTokenInvalid
-    );
+    !!(config?.github?.username && !githubTokenInvalid);
+
+  // Debug logging
+  console.log('GitHubLoginDialog state:', {
+    username: config?.github?.username,
+    has_oauth_token: githubSecretState?.has_oauth_token,
+    has_pat: githubSecretState?.has_pat,
+    githubTokenInvalid,
+    isAuthenticated,
+  });
+
+  const handleDevLogin = async () => {
+    console.log('🔧 Dev Login button clicked');
+    setFetching(true);
+    setError(null);
+    try {
+      console.log('Calling devLogin API...');
+      await githubAuthApi.devLogin();
+      console.log('devLogin API success, reloading system...');
+      await reloadSystem();
+      console.log('System reloaded, closing modal');
+      modal.resolve(true);
+      modal.hide();
+    } catch (e: any) {
+      console.error('Dev login error:', e);
+      setError(e?.message || 'Dev login failed');
+    } finally {
+      setFetching(false);
+    }
+  };
 
   const handleLogin = async () => {
     setFetching(true);
@@ -313,6 +340,16 @@ const GitHubLoginDialog = NiceModal.create(() => {
               >
                 Skip
               </Button>
+              {import.meta.env.DEV && (
+                <Button
+                  onClick={handleDevLogin}
+                  disabled={fetching}
+                  variant="secondary"
+                  className="flex-1"
+                >
+                  🔧 Dev Login
+                </Button>
+              )}
               <Button
                 onClick={handleLogin}
                 disabled={fetching}

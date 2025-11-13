@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import NiceModal from '@ebay/nice-modal-react';
 import { Loader } from '@/components/ui/loader';
 import { useProject } from '@/contexts/project-context';
 import { useProjectTasks } from '@/hooks/useProjectTasks';
@@ -23,7 +23,6 @@ const TASK_STATUSES = [
 
 export function KanbanPage() {
   const { projectId } = useProject();
-  const navigate = useNavigate();
   const { tasks, isLoading, error } = useProjectTasks(projectId || '');
 
   const handleDragEnd = useCallback(
@@ -53,9 +52,9 @@ export function KanbanPage() {
   const handleViewTaskDetails = useCallback(
     (task: Task) => {
       if (!projectId) return;
-      navigate(`/projects/${projectId}/tasks/${task.id}`);
+      NiceModal.show('task-detail', { task, projectId });
     },
-    [projectId, navigate]
+    [projectId]
   );
 
   if (isLoading) {
@@ -101,13 +100,28 @@ export function KanbanPage() {
   }
 
   return (
-    <div className="h-full overflow-hidden bg-background">
-      <TaskKanbanBoard
-        groupedTasks={groupedTasks}
-        onDragEnd={handleDragEnd}
-        onViewTaskDetails={handleViewTaskDetails}
-        projectId={projectId}
-      />
+    <div className="h-full flex flex-col bg-background">
+      {/* Header */}
+      <div className="border-b bg-background">
+        <div className="flex items-center justify-between px-6 py-4">
+          <div>
+            <h1 className="text-2xl font-semibold">태스크 보드</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              프로젝트의 모든 태스크를 칸반 보드로 시각화하고 관리합니다.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 min-h-0 overflow-hidden">
+        <TaskKanbanBoard
+          groupedTasks={groupedTasks}
+          onDragEnd={handleDragEnd}
+          onViewTaskDetails={handleViewTaskDetails}
+          projectId={projectId}
+        />
+      </div>
     </div>
   );
 }

@@ -21,6 +21,10 @@ export {
 
 // Task-related dialogs
 export {
+  TaskDetailModal,
+  type TaskDetailModalProps,
+} from './tasks/TaskDetailModal';
+export {
   TaskFormDialog,
   type TaskFormDialogProps,
 } from './tasks/TaskFormDialog';

@@ -56,6 +56,18 @@ export function DesignPage() {
 
   return (
     <div className="h-full flex flex-col">
+      {/* Header */}
+      <div className="border-b bg-background">
+        <div className="flex items-center justify-between px-6 py-4">
+          <div>
+            <h1 className="text-2xl font-semibold">AI 디자인 어시스턴트</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              AI와 대화하며 UI 컴포넌트를 실시간으로 디자인하고 생성합니다.
+            </p>
+          </div>
+        </div>
+      </div>
+
       <ResizablePanelGroup direction="horizontal" className="flex-1">
         {/* Left Panel - Preview */}
         <ResizablePanel defaultSize={50} minSize={30}>
